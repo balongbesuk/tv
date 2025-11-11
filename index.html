@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simple IPTV Web Player — M3U Player</title>
+  <style>
+    :root{font-family:Inter,Segoe UI,Roboto,Arial,sans-serif}
+    body{margin:0;background:#0f1720;color:#e6eef8;display:flex;flex-direction:column;height:100vh}
+    header{padding:12px 16px;background:linear-gradient(90deg,#0b1220,#0f2436);display:flex;gap:12px;align-items:center}
+    header h1{font-size:16px;margin:0}
+    .container{display:grid;grid-template-columns:320px 1fr;gap:12px;padding:12px;flex:1;min-height:0}
+    .sidebar{background:#071127;border-radius:10px;padding:10px;overflow:auto}
+    .player-area{background:#071127;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px}
+    input[type=search]{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:inherit}
+    .list{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+    .item{padding:8px;border-radius:8px;cursor:pointer;border:1px solid rgba(255,255,255,0.03);display:flex;flex-direction:column}
+    .item:hover{background:rgba(255,255,255,0.02)}
+    .meta{font-size:12px;color:#9fb0c8}
+    video,iframe{width:100%;height:480px;background:black;border-radius:8px}
+    .controls{display:flex;gap:8px;align-items:center}
+    .btn{padding:8px 10px;border-radius:8px;background:#0b1622;border:1px solid rgba(255,255,255,0.04);cursor:pointer}
+    .small{font-size:13px;padding:6px}
+    footer{padding:8px 12px;font-size:12px;color:#9fb0c8}
+    @media (max-width:900px){.container{grid-template-columns:1fr}video,iframe{height:260px}}
+  </style>
+  <!-- HLS.js for non-native HLS playback (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.1/dist/hls.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>IPTV Web Player — Bahasa Indonesia (M3U)</h1>
+    <div style="margin-left:auto;font-size:13px;color:#9fb0c8">M3U: https://iptv-org.github.io/iptv/languages/ind.m3u</div>
+  </header>
+
+  <div class="container">
+    <aside class="sidebar">
+      <label for="search">Cari channel</label>
+      <input id="search" type="search" placeholder="ketik nama channel..." />
+      <div style="margin-top:8px;display:flex;gap:8px">
+        <button id="reload" class="btn small">Muat Ulang M3U</button>
+        <button id="use-proxy" class="btn small">Toggle CORS Proxy</button>
+      </div>
+      <div id="list" class="list" aria-live="polite"></div>
+    </aside>
+
+    <main class="player-area">
+      <div class="player-header" style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div id="title" style="font-weight:600">Pilih channel dari daftar di kiri</div>
+          <div id="sub" class="meta">URL stream akan ditampilkan di sini</div>
+        </div>
+        <div class="controls">
+          <button id="play-btn" class="btn small">Play</button>
+          <button id="stop-btn" class="btn small">Stop</button>
+        </div>
+      </div>
+
+      <!-- video element for playback -->
+      <video id="video" controls playsinline></video>
+
+      <div style="display:flex;gap:8px;align-items:center;justify-content:space-between">
+        <div class="meta">Catatan: Beberapa stream membutuhkan CORS atau format khusus. Gunakan toggle proxy jika fetch gagal.</div>
+        <div style="display:flex;gap:8px">
+          <select id="bitrate" class="btn small"></select>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <footer>Jika stream tidak mau play di browser, coba jalankan file ini lewat server lokal (python -m http.server) atau gunakan CORS proxy.</footer>
+
+<script>
+const M3U_URL = 'https://iptv-org.github.io/iptv/languages/ind.m3u';
+let useProxy = false;
+// Optional proxy — user can toggle. If you have your own CORS proxy, replace the URL.
+const PROXY_PREFIX = 'https://cors.bridged.cc/';
+
+const listEl = document.getElementById('list');
+const searchEl = document.getElementById('search');
+const reloadBtn = document.getElementById('reload');
+const useProxyBtn = document.getElementById('use-proxy');
+const titleEl = document.getElementById('title');
+const subEl = document.getElementById('sub');
+const videoEl = document.getElementById('video');
+const playBtn = document.getElementById('play-btn');
+const stopBtn = document.getElementById('stop-btn');
+const bitrateEl = document.getElementById('bitrate');
+
+let channels = [];
+let current = null;
+let hls = null;
+
+async function fetchM3U(url){
+  const final = useProxy ? PROXY_PREFIX + url : url;
+  const res = await fetch(final);
+  if(!res.ok) throw new Error('Fetch failed: '+res.status);
+  return await res.text();
+}
+
+function parseM3U(text){
+  const lines = text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  const out = [];
+  let i = 0;
+  while(i < lines.length){
+    const line = lines[i];
+    if(line.startsWith('#EXTINF')){
+      // basic parse: #EXTINF:-1 tvg-id="..." tvg-name="...",Channel Name
+      const info = line.substring(8).trim();
+      const meta = {};
+      // split attrs and name
+      const idx = info.indexOf(',');
+      const attrs = idx>-1 ? info.substring(0, idx) : info;
+      const name = idx>-1 ? info.substring(idx+1).trim() : '';
+      // parse key="value"
+      const attrRegex = /(\w+)\s*=\s*"([^"]*)"/g;
+      let m;
+      while((m = attrRegex.exec(attrs))){ meta[m[1]] = m[2]; }
+      meta._name = name || meta.tvg-name || meta.tvg_name || '';
+      // next non-comment line expected to be URL
+      let j = i+1;
+      while(j < lines.length && lines[j].startsWith('#')) j++;
+      const url = lines[j] || '';
+      out.push({name: meta._name || url, url, raw: line, meta});
+      i = j+1;
+    } else {
+      i++;
+    }
+  }
+  return out;
+}
+
+function renderList(items){
+  listEl.innerHTML = '';
+  if(items.length===0){ listEl.innerHTML = '<div style="color:#9fb0c8">Tidak ada channel.</div>'; return; }
+  for(const ch of items){
+    const d = document.createElement('div');
+    d.className = 'item';
+    d.innerHTML = `<div style="font-weight:600">${escapeHtml(ch.name)}</div><div class="meta">${escapeHtml(ch.url)}</div>`;
+    d.addEventListener('click', ()=>selectChannel(ch));
+    listEl.appendChild(d);
+  }
+}
+
+function escapeHtml(s){ return (s||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+
+function selectChannel(ch){
+  current = ch;
+  titleEl.textContent = ch.name;
+  subEl.textContent = ch.url;
+  // auto-play when selected
+  startPlayback(ch.url);
+}
+
+function clearPlayback(){
+  if(hls){ hls.destroy(); hls = null; }
+  try{ videoEl.pause(); videoEl.removeAttribute('src'); videoEl.load(); }catch(e){}
+  bitrateEl.innerHTML = '';
+}
+
+function startPlayback(url){
+  clearPlayback();
+  // if it's an M3U8 and browser can't play natively -> hls.js
+  const isM3U8 = url.includes('.m3u8') || url.includes('m3u8');
+  if(isM3U8 && !videoEl.canPlayType('application/vnd.apple.mpegurl')){
+    if(Hls.isSupported()){
+      hls = new Hls();
+      // enable CORS prefix if toggled
+      const final = getFinalUrl(url);
+      hls.loadSource(final);
+      hls.attachMedia(videoEl);
+      hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
+        // populate quality list
+        const levels = hls.levels || [];
+        bitrateEl.innerHTML = '';
+        const opt = document.createElement('option'); opt.value='auto'; opt.textContent='Auto'; bitrateEl.appendChild(opt);
+        levels.forEach((lvl,i)=>{
+          const o = document.createElement('option'); o.value = i; o.textContent = (lvl.height?lvl.height+'p ':'') + (lvl.bitrate?Math.round(lvl.bitrate/1000)+'kbps':''); bitrateEl.appendChild(o);
+        });
+        videoEl.play().catch(()=>{});
+      });
+      bitrateEl.addEventListener('change',()=>{
+        const v = bitrateEl.value;
+        if(v==='auto') hls.currentLevel = -1; else hls.currentLevel = parseInt(v);
+      });
+    } else {
+      alert('HLS tidak didukung di browser ini.');
+    }
+  } else {
+    // normal playback (mp4, ts, etc.)
+    videoEl.src = getFinalUrl(url);
+    videoEl.play().catch(()=>{});
+  }
+}
+
+function getFinalUrl(url){
+  return useProxy ? PROXY_PREFIX + url : url;
+}
+
+async function loadAndRender(){
+  try{
+    listEl.innerHTML = '<div style="color:#9fb0c8">Memuat M3U...</div>';
+    const txt = await fetchM3U(M3U_URL);
+    channels = parseM3U(txt);
+    renderList(channels);
+  } catch(e){
+    listEl.innerHTML = '<div style="color:#ffb4b4">Gagal memuat M3U: '+e.message+'</div>';
+  }
+}
+
+reloadBtn.addEventListener('click', ()=>loadAndRender());
+useProxyBtn.addEventListener('click', ()=>{ useProxy = !useProxy; useProxyBtn.style.opacity = useProxy?1:0.8; loadAndRender(); });
+searchEl.addEventListener('input', ()=>{
+  const q = searchEl.value.trim().toLowerCase();
+  const filtered = channels.filter(c=> (c.name||'').toLowerCase().includes(q) || (c.url||'').toLowerCase().includes(q) );
+  renderList(filtered);
+});
+playBtn.addEventListener('click', ()=>{ if(current) startPlayback(current.url); else alert('Pilih channel dulu.'); });
+stopBtn.addEventListener('click', ()=>{ clearPlayback(); });
+
+// initial load
+loadAndRender();
+
+</script>
+</body>
+</html>
