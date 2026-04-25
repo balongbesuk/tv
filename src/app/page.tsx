@@ -36,11 +36,10 @@ import {
   Layers,
   ChevronRight,
   Info,
-  Calendar,
   Clock,
   AlertCircle
 } from 'lucide-react';
-import { Channel, parseM3U, parseXMLTV, EPGProgram } from '@/utils/iptv';
+import { Channel, parseM3U } from '@/utils/iptv';
 
 const STABLE_SOURCES = [
   { name: 'Indonesia (Utama)', url: 'https://iptv-org.github.io/iptv/languages/ind.m3u' },
@@ -50,46 +49,12 @@ const STABLE_SOURCES = [
   { name: 'News Channels', url: 'https://iptv-org.github.io/iptv/categories/news.m3u' },
 ];
 
-const EPG_URL = 'https://iptv-org.github.io/epg/guides/id/mncvision.com.xml';
-
 const PROXIES = [
   { name: 'AllOrigins', url: 'https://api.allorigins.win/raw?url=' },
   { name: 'CorsProxy.io', url: 'https://corsproxy.io/?' },
   { name: 'CodeTabs', url: 'https://api.codetabs.com/v1/proxy?quest=' },
   { name: 'ThingProxy', url: 'https://thingproxy.freeboard.io/fetch/' },
 ];
-
-const MOCK_EPG: Record<string, EPGProgram[]> = {
-  'beritasatu': [
-    { title: 'Berita Satu Siang', start: new Date(new Date().setHours(new Date().getHours() - 1)), stop: new Date(new Date().setHours(new Date().getHours() + 1)), desc: 'Rangkuman berita terkini dari dalam dan luar negeri.', channel: 'beritasatu' },
-    { title: 'Ekonomi Sore', start: new Date(new Date().setHours(new Date().getHours() + 1)), stop: new Date(new Date().setHours(new Date().getHours() + 2)), desc: 'Analisis pasar modal dan ekonomi nasional.', channel: 'beritasatu' },
-    { title: 'Top News Malam', start: new Date(new Date().setHours(new Date().getHours() + 2)), stop: new Date(new Date().setHours(new Date().getHours() + 4)), desc: 'Berita utama hari ini yang paling banyak diperbincangkan.', channel: 'beritasatu' },
-  ],
-  'rcti': [
-    { title: 'Silet', start: new Date(new Date().setHours(new Date().getHours() - 1)), stop: new Date(new Date().setHours(new Date().getHours() + 1)), desc: 'Kupas tuntas tajam terpercaya seputar selebriti.', channel: 'rcti' },
-    { title: 'Ikatan Cinta', start: new Date(new Date().setHours(new Date().getHours() + 1)), stop: new Date(new Date().setHours(new Date().getHours() + 3)), desc: 'Sinetron drama keluarga terpopuler.', channel: 'rcti' },
-  ],
-  'metrotv': [
-    { title: 'Metro Pagi Primetime', start: new Date(new Date().setHours(new Date().getHours() - 1)), stop: new Date(new Date().setHours(new Date().getHours() + 1)), desc: 'Informasi berita pagi terkini dan mendalam.', channel: 'metrotv' },
-    { title: 'Editorial Media Indonesia', start: new Date(new Date().setHours(new Date().getHours() + 1)), stop: new Date(new Date().setHours(new Date().getHours() + 2)), desc: 'Bedah berita utama hari ini bersama redaksi.', channel: 'metrotv' },
-    { title: 'Kick Andy', start: new Date(new Date().setHours(new Date().getHours() + 2)), stop: new Date(new Date().setHours(new Date().getHours() + 4)), desc: 'Talkshow inspiratif bersama Andy F. Noya.', channel: 'metrotv' },
-  ],
-  'indosiar': [
-    { title: 'Patroli', start: new Date(new Date().setHours(new Date().getHours() - 1)), stop: new Date(new Date().setHours(new Date().getHours() + 1)), desc: 'Berita kriminal terkini.', channel: 'indosiar' },
-    { title: 'Kisah Nyata', start: new Date(new Date().setHours(new Date().getHours() + 1)), stop: new Date(new Date().setHours(new Date().getHours() + 3)), desc: 'Drama religi penuh hikmah.', channel: 'indosiar' },
-    { title: 'Magic 5', start: new Date(new Date().setHours(new Date().getHours() + 3)), stop: new Date(new Date().setHours(new Date().getHours() + 5)), desc: 'Sinetron fantasi remaja.', channel: 'indosiar' },
-  ],
-  'trans7': [
-    { title: 'Trending', start: new Date(new Date().setHours(new Date().getHours() - 1)), stop: new Date(new Date().setHours(new Date().getHours() + 1)), desc: 'Informasi viral di media sosial.', channel: 'trans7' },
-    { title: 'On Report', start: new Date(new Date().setHours(new Date().getHours() + 1)), stop: new Date(new Date().setHours(new Date().getHours() + 2)), desc: 'Investigasi berita mendalam.', channel: 'trans7' },
-    { title: 'Lapor Pak!', start: new Date(new Date().setHours(new Date().getHours() + 2)), stop: new Date(new Date().setHours(new Date().getHours() + 4)), desc: 'Komedi situasi kantor polisi.', channel: 'trans7' },
-  ],
-  'transtv': [
-    { title: 'Brownis', start: new Date(new Date().setHours(new Date().getHours() - 1)), stop: new Date(new Date().setHours(new Date().getHours() + 1)), desc: 'Obrowlan manis seputar selebriti.', channel: 'transtv' },
-    { title: 'Rumpi No Secret', start: new Date(new Date().setHours(new Date().getHours() + 1)), stop: new Date(new Date().setHours(new Date().getHours() + 2)), desc: 'Gosip selebriti paling hangat.', channel: 'transtv' },
-    { title: 'Bioskop Trans TV', start: new Date(new Date().setHours(new Date().getHours() + 2)), stop: new Date(new Date().setHours(new Date().getHours() + 5)), desc: 'Film blockbuster pilihan.', channel: 'transtv' },
-  ]
-};
 
 export default function Home() {
   // --- Refs ---
@@ -119,19 +84,12 @@ export default function Home() {
   const [scanProgress, setScanProgress] = useState({ current: 0, total: 0 });
   const [autoProxyMode, setAutoProxyMode] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
-  const [epgData, setEpgData] = useState<Record<string, EPGProgram[]>>({});
-  const [epgStatus, setEpgStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   
-  // New States
+  // Quality Selection States
   const [levels, setLevels] = useState<any[]>([]);
   const [currentLevel, setCurrentLevel] = useState<number>(-1);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
-  const [showSchedule, setShowSchedule] = useState(false);
 
-  // --- Helpers ---
-  const cleanChannelName = (name: string) => {
-    return name.replace(/\([^)]*\)/g, '').trim();
-  };
   useEffect(() => {
     setIsMounted(true);
     
@@ -149,17 +107,12 @@ export default function Home() {
     if (savedProxyIndex) setActiveProxy(PROXIES[parseInt(savedProxyIndex)]);
     if (savedAutoProxy) setAutoProxyMode(JSON.parse(savedAutoProxy));
 
-    loadInitialData(savedUrl || STABLE_SOURCES[0].url, JSON.parse(savedProxy || 'false'), PROXIES[parseInt(savedProxyIndex || '0')]);
+    loadPlaylist(savedUrl || STABLE_SOURCES[0].url, JSON.parse(savedProxy || 'false'), PROXIES[parseInt(savedProxyIndex || '0')]);
     
     return () => {
       if (hlsRef.current) hlsRef.current.destroy();
     };
   }, []);
-
-  const loadInitialData = async (url: string, proxyState: boolean, proxyObj: any) => {
-    await loadPlaylist(url, proxyState, proxyObj);
-    fetchEPG();
-  };
 
   // --- Actions ---
   const loadPlaylist = async (url: string, proxyState: boolean = useProxy, proxyObj = activeProxy) => {
@@ -191,63 +144,6 @@ export default function Home() {
     }
   };
 
-  const fetchEPG = async () => {
-    setEpgStatus('loading');
-    // Try each proxy until one works
-    for (const proxy of PROXIES) {
-      try {
-        const proxyUrl = `${proxy.url}${encodeURIComponent(EPG_URL)}`;
-        const response = await fetch(proxyUrl);
-        if (response.ok) {
-          const xmlText = await response.text();
-          const parsed = parseXMLTV(xmlText);
-          setEpgData(parsed);
-          setEpgStatus('ready');
-          console.log(`EPG loaded successfully using ${proxy.name}`);
-          return;
-        }
-      } catch (e) {
-        console.warn(`EPG Fetch failed with ${proxy.name}, trying next...`);
-      }
-    }
-    setEpgStatus('error');
-    console.error("All proxies failed to load EPG.");
-  };
-
-  const getChannelEPG = (channel?: Channel | null) => {
-    if (!channel) return null;
-    
-    // 1. Try direct ID match
-    let epgId = channel.epgId;
-    let programs = epgId ? epgData[epgId] : null;
-
-    // 2. Try smart name match if ID fails
-    if (!programs) {
-      // Clean name: remove content in (), remove non-alphanumeric, lowercase
-      const cleanName = channel.name.toLowerCase().replace(/\([^)]*\)/g, '').replace(/[^a-z0-9]/g, '');
-      
-      if (cleanName) {
-        // First try MOCK data for demo if fetch failed
-        if (MOCK_EPG[cleanName]) {
-          programs = MOCK_EPG[cleanName];
-        } else {
-          const foundId = Object.keys(epgData).find(id => {
-            const idLower = id.toLowerCase().replace(/[^a-z0-9]/g, '');
-            return idLower.includes(cleanName) || cleanName.includes(idLower);
-          });
-          if (foundId) programs = epgData[foundId];
-        }
-      }
-    }
-
-    if (!programs) return null;
-
-    const now = new Date();
-    const current = programs.find(p => now >= p.start && now <= p.stop);
-    const next = programs.filter(p => p.start > now).slice(0, 5);
-    return { current, next };
-  };
-
   const addToHistory = (id: string) => {
     const newHistory = [id, ...history.filter(h => h !== id)].slice(0, 15);
     setHistory(newHistory);
@@ -259,7 +155,6 @@ export default function Home() {
     addToHistory(channel.id);
     setLevels([]);
     setCurrentLevel(-1);
-    setShowSchedule(false);
     
     const tryPlay = (url: string): Promise<boolean> => {
       return new Promise((resolve) => {
@@ -400,18 +295,6 @@ export default function Home() {
     setIsScanning(false);
   };
 
-  const downloadM3U = (content: string, filename: string) => {
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
   const exportFavorites = () => {
     const favChannels = channels.filter(c => favorites.includes(c.id));
     if (favChannels.length === 0) return alert('Daftar favorit masih kosong.');
@@ -420,7 +303,15 @@ export default function Home() {
     favChannels.forEach(ch => {
       m3u += `#EXTINF:-1 tvg-logo="${ch.logo || ''}" group-title="${ch.group}",${ch.name}\n${ch.url}\n`;
     });
-    downloadM3U(m3u, 'vibestream_favorites.m3u');
+    const blob = new Blob([m3u], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'vibestream_favorites.m3u';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const togglePIP = async () => {
@@ -447,10 +338,6 @@ export default function Home() {
       setCurrentLevel(index);
       setShowQualityMenu(false);
     }
-  };
-
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
   };
 
   // --- Derived State ---
@@ -490,19 +377,17 @@ export default function Home() {
     });
   }, [channels, favorites, history, currentFilter, currentGroup, searchQuery]);
 
-  const activeEPG = useMemo(() => getChannelEPG(currentChannel), [currentChannel, epgData]);
-
   if (!isMounted) return <div className="h-screen bg-zinc-950 flex items-center justify-center"><Loader2 className="animate-spin text-indigo-500" /></div>;
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-zinc-950 text-zinc-100 font-[family-name:var(--font-outfit)]">
       {/* Navigation */}
       <nav className="h-16 px-4 md:px-8 flex items-center justify-between glass sticky top-0 z-50">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 active:scale-95 transition-transform cursor-pointer">
+        <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 active:scale-95 transition-transform">
             <Play className="fill-white text-white translate-x-0.5" size={20} />
           </div>
-          <span className="text-xl font-black tracking-tight hidden sm:block bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-500">VibeStream</span>
+          <span className="text-xl font-black tracking-tight hidden sm:block bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-500 group-hover:from-indigo-400 group-hover:to-white transition-all">VibeStream</span>
         </div>
 
         <div className="flex-1 max-w-xl mx-4 relative group">
@@ -517,13 +402,6 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-2 md:gap-4">
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl border border-white/5 bg-white/[0.02]">
-            <Calendar size={12} className={epgStatus === 'loading' ? 'animate-spin text-indigo-400' : epgStatus === 'ready' ? 'text-green-500' : 'text-red-500'} />
-            <span className={`text-[9px] font-black uppercase tracking-widest ${epgStatus === 'ready' ? 'text-zinc-400' : 'text-zinc-600'}`}>
-              EPG: {epgStatus}
-            </span>
-          </div>
-
           <button 
             onClick={() => {
               const next = !autoProxyMode;
@@ -556,31 +434,11 @@ export default function Home() {
                   <button onClick={() => setShowSettings(false)} className="hover:text-red-400 transition-colors"><X size={16} /></button>
                 </div>
                 <div className="p-3 space-y-1.5">
-                  <div className="px-3 py-4 mb-2 bg-indigo-500/5 border border-indigo-500/10 rounded-2xl space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-black text-zinc-500 uppercase tracking-wider">EPG Data Status</span>
-                      <div className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest ${
-                        epgStatus === 'ready' ? 'bg-green-500/10 text-green-500' : 
-                        epgStatus === 'loading' ? 'bg-amber-500/10 text-amber-500' : 'bg-red-500/10 text-red-500'
-                      }`}>
-                        {epgStatus}
-                      </div>
-                    </div>
-                    {epgStatus === 'error' && (
-                      <button 
-                        onClick={fetchEPG}
-                        className="w-full flex items-center justify-center gap-2 py-2 bg-indigo-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all"
-                      >
-                        <RefreshCw size={12} /> Retry Fetch EPG
-                      </button>
-                    )}
-                  </div>
-
                   {STABLE_SOURCES.map((source) => (
                     <button
                       key={source.url}
                       onClick={() => {
-                        loadInitialData(source.url, useProxy, activeProxy);
+                        loadPlaylist(source.url);
                         setShowSettings(false);
                       }}
                       className={`w-full text-left px-4 py-3.5 rounded-2xl text-xs font-bold transition-all flex items-center justify-between group/item ${
@@ -606,7 +464,7 @@ export default function Home() {
                         className="w-full bg-black/40 border border-white/5 rounded-xl px-3 py-2.5 text-[10px] outline-none focus:border-indigo-500/50 transition-all font-mono"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
-                            loadInitialData(e.currentTarget.value, useProxy, activeProxy);
+                            loadPlaylist(e.currentTarget.value);
                             setShowSettings(false);
                           }
                         }}
@@ -631,19 +489,20 @@ export default function Home() {
           
           <button 
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-2.5 md:hidden bg-zinc-900 rounded-xl border border-white/5 text-zinc-400"
+            className="p-2.5 bg-zinc-900 rounded-xl border border-white/5 text-zinc-400 hover:text-indigo-400 transition-all active:scale-90"
+            title="Toggle Explorer"
           >
             <Menu size={20} />
           </button>
         </div>
       </nav>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
         {/* Sidebar */}
         <aside className={`
-          fixed inset-0 z-40 bg-zinc-950 md:relative md:inset-auto md:bg-transparent md:translate-x-0
-          w-full md:w-80 border-r border-white/5 flex flex-col transition-transform duration-500 cubic-bezier(0.4, 0, 0.2, 1)
-          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+          absolute md:relative inset-y-0 left-0 z-40 bg-zinc-950/95 md:bg-zinc-950/40 backdrop-blur-3xl
+          w-80 border-r border-white/5 flex flex-col transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1)
+          ${isSidebarOpen ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0 md:w-0 md:border-none'}
         `}>
           <div className="p-4 md:p-6 space-y-5">
             <div className="flex items-center justify-between">
@@ -732,328 +591,294 @@ export default function Home() {
                 <span className="text-xs font-black uppercase tracking-widest">Syncing Playlist...</span>
               </div>
             ) : filteredChannels.length > 0 ? (
-              filteredChannels.map((ch, idx) => {
-                const prog = getChannelEPG(ch);
-                return (
-                  <div 
-                    key={`${ch.id}-${idx}`}
-                    onClick={() => {
-                      playChannel(ch);
-                      if (window.innerWidth < 768) setIsSidebarOpen(false);
-                    }}
-                    className={`group flex items-center gap-4 p-3.5 rounded-2xl cursor-pointer transition-all border ${
-                      currentChannel?.id === ch.id 
-                      ? 'bg-indigo-500/10 border-indigo-500/30 shadow-lg shadow-indigo-500/5 translate-x-1' 
-                      : 'bg-white/[0.01] border-transparent hover:bg-white/[0.04] hover:translate-x-1'
-                    }`}
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-zinc-900 border border-white/5 overflow-hidden flex-shrink-0 flex items-center justify-center relative shadow-sm group-hover:scale-105 transition-transform">
-                      {ch.logo ? (
-                        <img src={ch.logo} alt="" className="w-full h-full object-contain p-1" onError={(e) => (e.currentTarget.style.display = 'none')} />
-                      ) : (
-                        <Tv size={20} className="text-zinc-700" />
-                      )}
-                      {ch.status && ch.status !== 'unknown' && (
-                        <div className={`absolute bottom-0 right-0 w-3.5 h-3.5 border-[3px] border-zinc-950 rounded-full ${
-                          ch.status === 'online' ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.4)]' : 
-                          ch.status === 'offline' ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]' : 
-                          'bg-amber-500 animate-pulse'
-                        }`} />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-bold truncate group-hover:text-indigo-400 transition-colors leading-tight">{ch.name}</h4>
-                      {prog?.current ? (
-                        <p className="text-[9px] text-indigo-400 font-bold truncate mt-0.5 flex items-center gap-1 uppercase tracking-tighter">
-                          <Play size={8} className="fill-indigo-400" /> {prog.current.title}
-                        </p>
-                      ) : (
-                        <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-black opacity-60">{ch.group || 'General'}</span>
-                      )}
-                    </div>
-                    <button 
-                      onClick={(e) => toggleFavorite(ch.id, e)}
-                      className={`p-2 rounded-xl transition-all ${
-                        favorites.includes(ch.id) ? 'text-amber-500 bg-amber-500/10 scale-110' : 'text-zinc-800 hover:text-zinc-400 hover:bg-white/5'
-                      }`}
-                    >
-                      <Star size={16} fill={favorites.includes(ch.id) ? "currentColor" : "none"} />
-                    </button>
+              filteredChannels.map((ch, idx) => (
+                <div 
+                  key={`${ch.id}-${idx}`}
+                  onClick={() => {
+                    playChannel(ch);
+                    if (window.innerWidth < 768) setIsSidebarOpen(false);
+                  }}
+                  className={`group flex items-center gap-4 p-3.5 rounded-2xl cursor-pointer transition-all border ${
+                    currentChannel?.id === ch.id 
+                    ? 'bg-indigo-500/10 border-indigo-500/30 shadow-lg shadow-indigo-500/5 translate-x-1' 
+                    : 'bg-white/[0.01] border-transparent hover:bg-white/[0.04] hover:translate-x-1'
+                  }`}
+                >
+                  <div className="w-12 h-12 rounded-xl bg-zinc-900 border border-white/5 overflow-hidden flex-shrink-0 flex items-center justify-center relative shadow-sm group-hover:scale-105 transition-transform">
+                    {ch.logo ? (
+                      <img src={ch.logo} alt="" className="w-full h-full object-contain p-1" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                    ) : (
+                      <Tv size={20} className="text-zinc-700" />
+                    )}
+                    {ch.status && ch.status !== 'unknown' && (
+                      <div className={`absolute bottom-0 right-0 w-3.5 h-3.5 border-[3px] border-zinc-950 rounded-full ${
+                        ch.status === 'online' ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.4)]' : 
+                        ch.status === 'offline' ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]' : 
+                        'bg-amber-500 animate-pulse'
+                      }`} />
+                    )}
                   </div>
-                );
-              })
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className={`text-sm font-black truncate tracking-tight ${currentChannel?.id === ch.id ? 'text-white' : 'text-zinc-300 group-hover:text-white'}`}>
+                        {ch.name}
+                      </h4>
+                    </div>
+                    <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest truncate mt-0.5">{ch.group || 'Lainnya'}</p>
+                  </div>
+                  <button 
+                    onClick={(e) => toggleFavorite(ch.id, e)}
+                    className={`p-2 rounded-lg transition-all ${favorites.includes(ch.id) ? 'text-amber-500 bg-amber-500/10' : 'text-zinc-700 hover:text-amber-500 hover:bg-white/5'}`}
+                  >
+                    <Star size={16} fill={favorites.includes(ch.id) ? "currentColor" : "none"} />
+                  </button>
+                </div>
+              ))
             ) : (
-              <div className="flex flex-col items-center justify-center h-64 text-center px-6">
-                <Search className="text-zinc-800 mb-4" size={40} />
-                <h5 className="text-zinc-500 font-bold mb-1">No channels found</h5>
-                <p className="text-[10px] text-zinc-700 uppercase tracking-wider font-black">Try a different filter or search term</p>
+              <div className="flex flex-col items-center justify-center h-48 text-zinc-700 space-y-4 border-2 border-dashed border-white/5 rounded-3xl">
+                <Search size={32} className="opacity-20" />
+                <span className="text-[10px] font-black uppercase tracking-widest">No Channels Found</span>
               </div>
             )}
           </div>
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.05),transparent_60%)]">
-          <div className="max-w-6xl mx-auto p-4 md:p-10 space-y-10">
-            <div className="space-y-8">
-              <div className="w-full aspect-video bg-black rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/5 relative group ring-1 ring-white/5">
-                <video 
-                  ref={videoRef} 
-                  controls 
-                  className="w-full h-full object-contain"
-                  poster={currentChannel?.logo || ''}
-                />
-                
-                {!currentChannel && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 bg-zinc-950 z-10 text-center p-8">
-                    <div className="w-24 h-24 rounded-3xl bg-zinc-900 flex items-center justify-center animate-pulse shadow-2xl">
-                      <Play className="fill-zinc-800 text-zinc-800 translate-x-1" size={40} />
+        <main className="flex-1 flex flex-col min-w-0 bg-black/20 relative overflow-hidden">
+          <div className="flex-1 p-0 md:p-4 flex flex-col overflow-y-auto custom-scrollbar">
+            <div className="max-w-[1600px] mx-auto w-full p-4 md:p-6 space-y-8">
+              {/* Player Section - Maximized */}
+              <div className="relative aspect-video w-full bg-black rounded-[2rem] md:rounded-[3rem] overflow-hidden shadow-[0_30px_100px_-20px_rgba(0,0,0,0.5)] border border-white/5 group/player">
+              {currentChannel ? (
+                <>
+                  <video 
+                    ref={videoRef} 
+                    className="w-full h-full object-contain"
+                    controls
+                    playsInline
+                  />
+                  
+                  {/* Custom Player Overlays */}
+                  {(streamStatus === 'loading' || streamStatus === 'auto-proxying') && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/80 backdrop-blur-sm z-10">
+                      <div className="relative">
+                        <Loader2 className="animate-spin text-indigo-500" size={48} />
+                        <div className="absolute inset-0 blur-xl bg-indigo-500/20 animate-pulse" />
+                      </div>
+                      <p className="mt-6 text-sm font-black uppercase tracking-[0.3em] text-white animate-pulse">
+                        {streamStatus === 'auto-proxying' ? 'Auto-Proxy Active...' : 'Buffering Stream...'}
+                      </p>
                     </div>
-                    <div className="space-y-2">
-                      <h2 className="text-xl font-black tracking-tight">Ready for Streaming</h2>
-                      <p className="text-xs text-zinc-500 uppercase tracking-[2px] font-bold">Select a channel to begin your experience</p>
-                    </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Overlays */}
-                {(streamStatus === 'loading' || streamStatus === 'auto-proxying') && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-md z-20 gap-6">
-                    <div className="relative">
-                      <div className="absolute inset-0 bg-indigo-500/20 blur-2xl rounded-full animate-pulse" />
-                      <Loader2 className="text-indigo-500 animate-spin relative z-10" size={56} />
+                  {streamStatus === 'error' && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/90 backdrop-blur-md z-10 p-8 text-center">
+                      <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center mb-6 border border-red-500/20">
+                        <WifiOff className="text-red-500" size={40} />
+                      </div>
+                      <h3 className="text-xl font-black text-white mb-2">Stream Unavailable</h3>
+                      <p className="text-zinc-400 text-sm max-w-xs mb-8 leading-relaxed">
+                        This channel is currently offline or requires a proxy to play.
+                      </p>
+                      <div className="flex gap-3">
+                        <button 
+                          onClick={() => playChannel(currentChannel)}
+                          className="px-8 py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/20 active:scale-95"
+                        >
+                          Retry Connection
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex flex-col items-center gap-2">
-                      <span className="text-sm font-black text-white tracking-[4px] uppercase animate-pulse">
-                        {streamStatus === 'auto-proxying' ? 'Auto-Proxying' : 'Establishing connection'}
-                      </span>
-                      <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">Optimizing stream levels...</p>
-                    </div>
-                  </div>
-                )}
+                  )}
 
-                {streamStatus === 'error' && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 bg-zinc-950/95 backdrop-blur-xl z-20 text-center p-10">
-                    <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/20">
-                      <Shield className="text-red-500" size={40} />
-                    </div>
-                    <div className="space-y-2">
-                      <h3 className="text-2xl font-black">Connection Refused</h3>
-                      <p className="text-sm text-zinc-500 max-w-sm mx-auto">All proxy routes failed. This stream might be geo-blocked or permanently down.</p>
-                    </div>
-                    <div className="flex gap-3">
-                      <button 
-                        onClick={() => currentChannel && playChannel(currentChannel)}
-                        className="px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 rounded-2xl transition-all text-sm font-black shadow-lg shadow-indigo-600/20"
-                      >
-                        RETRY CONNECTION
-                      </button>
-                      <button 
-                        onClick={openInVLC}
-                        className="px-8 py-3.5 bg-zinc-800 hover:bg-zinc-700 rounded-2xl transition-all text-sm font-black flex items-center gap-2 border border-white/5"
-                      >
-                        <ExternalLink size={18} />
-                        OPEN IN VLC
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Quality / PIP / Schedule Controls */}
-                {currentChannel && streamStatus === 'playing' && (
-                  <div className="absolute top-6 right-6 flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0 z-30">
-                    <button 
-                      onClick={() => setShowSchedule(!showSchedule)}
-                      className={`p-3 backdrop-blur-xl border border-white/10 rounded-2xl transition-all shadow-xl flex items-center gap-2 ${showSchedule ? 'bg-indigo-500 text-white' : 'bg-black/60 text-white hover:bg-black/80'}`}
-                      title="Show Schedule"
-                    >
-                      <Calendar size={18} />
-                      <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Schedule</span>
-                    </button>
-
+                  {/* Quality Selector Button - TOP RIGHT */}
+                  <div className="absolute top-6 right-6 z-20 flex gap-2">
                     <div className="relative">
                       <button 
                         onClick={() => setShowQualityMenu(!showQualityMenu)}
-                        className="p-3 bg-black/60 hover:bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl text-white flex items-center gap-2 transition-all shadow-xl"
+                        className="p-3 bg-black/40 hover:bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl text-white transition-all active:scale-95 shadow-2xl"
                         title="Stream Quality"
                       >
-                        <Settings2 size={18} className={showQualityMenu ? 'rotate-90 transition-transform' : ''} />
-                        <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">
-                          {currentLevel === -1 ? 'Auto' : (levels[currentLevel]?.height ? `${levels[currentLevel].height}p` : 'Manual')}
-                        </span>
+                        <Settings2 size={20} />
                       </button>
                       
                       {showQualityMenu && levels.length > 0 && (
-                        <div className="absolute right-0 top-full mt-2 w-48 bg-zinc-900/95 border border-white/10 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-xl ring-1 ring-white/10">
-                          <button 
+                        <div className="absolute top-full right-0 mt-3 w-48 bg-zinc-900/95 border border-white/10 rounded-3xl shadow-2xl overflow-hidden backdrop-blur-2xl py-2 z-50">
+                          <div className="px-4 py-2 border-b border-white/5 mb-1">
+                            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Quality Levels</span>
+                          </div>
+                          <button
                             onClick={() => switchLevel(-1)}
-                            className={`w-full text-left px-4 py-3 text-[10px] font-black uppercase transition-all flex items-center justify-between ${currentLevel === -1 ? 'bg-indigo-500 text-white' : 'hover:bg-white/5 text-zinc-400'}`}
+                            className={`w-full text-left px-4 py-3 text-xs font-bold transition-all flex items-center justify-between ${
+                              currentLevel === -1 ? 'text-indigo-400 bg-indigo-500/10' : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                            }`}
                           >
-                            <span>Auto Quality</span>
-                            {currentLevel === -1 && <CheckCircle2 size={12} />}
+                            Auto Quality
+                            {currentLevel === -1 && <CheckCircle2 size={14} />}
                           </button>
-                          {levels.map((lvl, idx) => (
+                          {levels.map((level, idx) => (
                             <button
-                              key={`quality-${idx}`}
+                              key={idx}
                               onClick={() => switchLevel(idx)}
-                              className={`w-full text-left px-4 py-3 text-[10px] font-black uppercase transition-all flex items-center justify-between ${currentLevel === idx ? 'bg-indigo-500 text-white' : 'hover:bg-white/5 text-zinc-400'}`}
+                              className={`w-full text-left px-4 py-3 text-xs font-bold transition-all flex items-center justify-between ${
+                                currentLevel === idx ? 'text-indigo-400 bg-indigo-500/10' : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                              }`}
                             >
-                              <span>{lvl.height}p ({Math.round(lvl.bitrate / 1024)} kbps)</span>
-                              {currentLevel === idx && <CheckCircle2 size={12} />}
+                              {level.height ? `${level.height}p` : `Level ${idx + 1}`}
+                              {currentLevel === idx && <CheckCircle2 size={14} />}
                             </button>
                           ))}
                         </div>
                       )}
                     </div>
-
                     <button 
                       onClick={togglePIP}
-                      className="p-3 bg-black/60 hover:bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl text-white transition-all shadow-xl"
+                      className="p-3 bg-black/40 hover:bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl text-white transition-all active:scale-95 shadow-2xl"
                       title="Picture in Picture"
                     >
-                      <Maximize2 size={18} />
+                      <Layers size={20} />
+                    </button>
+                    <button 
+                      onClick={() => videoRef.current?.requestFullscreen()}
+                      className="p-3 bg-black/40 hover:bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl text-white transition-all active:scale-95 shadow-2xl"
+                      title="Fullscreen"
+                    >
+                      <Maximize2 size={20} />
                     </button>
                   </div>
-                )}
-
-                {/* Schedule Overlay */}
-                {showSchedule && (
-                  <div className="absolute inset-0 bg-black/90 backdrop-blur-xl z-40 p-8 md:p-12 overflow-y-auto animate-in fade-in slide-in-from-bottom-4 duration-300">
-                    <div className="flex items-center justify-between mb-8">
-                      <div className="flex items-center gap-4">
-                        <Calendar className="text-indigo-500" size={32} />
-                        <h3 className="text-2xl font-black uppercase tracking-widest">Upcoming Shows</h3>
-                      </div>
-                      <button onClick={() => setShowSchedule(false)} className="p-3 bg-white/5 hover:bg-white/10 rounded-2xl transition-all">
-                        <X size={24} />
-                      </button>
-                    </div>
-                    <div className="space-y-4 max-w-2xl mx-auto">
-                      {activeEPG?.next && activeEPG.next.length > 0 ? (
-                        activeEPG.next.map((prog, idx) => (
-                          <div key={idx} className="group p-6 rounded-3xl bg-white/[0.03] border border-white/5 hover:border-indigo-500/30 transition-all flex items-center justify-between">
-                            <div className="space-y-1">
-                              <h4 className="font-bold text-lg group-hover:text-indigo-400 transition-colors">{prog.title}</h4>
-                              <p className="text-xs text-zinc-500 leading-relaxed opacity-70">{prog.desc}</p>
-                            </div>
-                            <div className="flex items-center gap-3 text-indigo-400 bg-indigo-500/10 px-4 py-2 rounded-2xl border border-indigo-500/20">
-                              <Clock size={16} />
-                              <span className="text-xs font-black">{formatTime(prog.start)}</span>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
-                          <AlertCircle className="text-zinc-800" size={48} />
-                          <div className="space-y-1">
-                            <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs">Jadwal tidak ditemukan</p>
-                            <p className="text-[10px] text-zinc-700 font-medium">Data jadwal untuk channel "{cleanChannelName(currentChannel?.name || '')}" tidak tersedia di sumber EPG saat ini.</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                </>
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center">
+                  <div className="w-24 h-24 rounded-[2rem] bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center mb-8 border border-white/5 relative">
+                    <Play className="text-indigo-400 fill-indigo-400/20" size={40} />
+                    <div className="absolute inset-0 blur-3xl bg-indigo-500/10 rounded-full" />
                   </div>
-                )}
-              </div>
-
-              <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 px-4">
-                <div className="space-y-4">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className="px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-400 text-[10px] font-black uppercase tracking-[2px] border border-indigo-500/20">
-                      {currentChannel?.group || 'Live Feed'}
-                    </span>
-                    {activeEPG?.current && (
-                      <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/10 text-red-500 text-[10px] font-black uppercase tracking-[2px] border border-red-500/20 animate-pulse">
-                        <Radio size={12} />
-                        <span>LIVE: {activeEPG.current.title}</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="space-y-1">
-                    <h1 className="text-3xl md:text-5xl font-black tracking-tight leading-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-zinc-500">
-                      {currentChannel?.name || 'Welcome to VibeStream'}
-                    </h1>
-                    {activeEPG?.current?.desc && (
-                      <p className="text-sm text-zinc-500 max-w-xl font-medium leading-relaxed italic">"{activeEPG.current.desc}"</p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-6 pt-2">
-                    <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-zinc-500">
-                      <div className={`w-2.5 h-2.5 rounded-full ${
-                        streamStatus === 'playing' ? 'bg-green-500 shadow-[0_0_12px_rgba(34,197,94,0.6)]' : 
-                        (streamStatus === 'loading' || streamStatus === 'auto-proxying') ? 'bg-amber-500 animate-pulse' : 'bg-red-500'
-                      }`} />
-                      <span>{streamStatus === 'playing' ? 'Active Stream' : streamStatus.replace('-', ' ')}</span>
-                    </div>
-                    {activeEPG?.current && (
-                      <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-zinc-400">
-                        <Clock size={14} className="text-indigo-400" />
-                        <span>{formatTime(activeEPG.current.start)} - {formatTime(activeEPG.current.stop)}</span>
-                      </div>
-                    )}
-                  </div>
+                  <h2 className="text-3xl font-black text-white tracking-tight mb-3">Ready to Stream</h2>
+                  <p className="text-zinc-500 text-sm max-w-sm leading-relaxed">
+                    Select a channel from the explorer to start watching your favorite content in premium quality.
+                  </p>
                 </div>
-
-                <div className="flex flex-wrap items-center gap-3">
-                  <button 
-                    onClick={openInVLC}
-                    className="flex-1 sm:flex-none flex items-center justify-center gap-3 px-8 py-4 bg-zinc-900 border border-white/5 rounded-2xl font-black hover:bg-zinc-800 transition-all text-xs uppercase tracking-widest group shadow-lg"
-                  >
-                    <ExternalLink size={18} className="text-indigo-400 group-hover:scale-110 transition-transform" />
-                    <span>Watch in VLC</span>
-                  </button>
-                  <button 
-                    onClick={() => currentChannel && playChannel(currentChannel)}
-                    className="flex-1 sm:flex-none flex items-center justify-center gap-3 px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black hover:bg-indigo-700 transition-all shadow-2xl shadow-indigo-600/30 active:scale-95 text-xs uppercase tracking-widest"
-                  >
-                    <RefreshCw size={18} className={streamStatus === 'loading' ? 'animate-spin' : ''} />
-                    <span>Refresh Stream</span>
-                  </button>
-                </div>
-              </div>
+              )}
             </div>
 
-            {/* Premium Features Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4">
-              <div className="p-6 rounded-[2rem] bg-white/[0.02] border border-white/5 hover:border-indigo-500/30 transition-all group relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                  <Calendar size={60} />
-                </div>
-                <Calendar className="text-pink-500 mb-5 group-hover:scale-110 transition-transform" size={28} />
-                <h4 className="font-black text-sm uppercase tracking-widest mb-3">Live EPG</h4>
-                <p className="text-[11px] text-zinc-500 leading-relaxed font-medium">Lihat jadwal acara dan apa yang sedang tayang sekarang secara real-time.</p>
-              </div>
-              
-              <div className="p-6 rounded-[2rem] bg-white/[0.02] border border-white/5 hover:border-indigo-500/30 transition-all group relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                  <Maximize2 size={60} />
-                </div>
-                <Maximize2 className="text-purple-500 mb-5 group-hover:scale-110 transition-transform" size={28} />
-                <h4 className="font-black text-sm uppercase tracking-widest mb-3">PIP Mode</h4>
-                <p className="text-[11px] text-zinc-500 leading-relaxed font-medium">Tetap tonton siaran favorit Anda sambil mengerjakan hal lain di browser.</p>
-              </div>
+            {/* Info Section */}
+            {currentChannel && (
+              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <span className="px-3 py-1 rounded-lg bg-indigo-500/10 text-indigo-400 text-[10px] font-black uppercase tracking-widest border border-indigo-500/20">
+                        {currentChannel.group || 'General'}
+                      </span>
+                    </div>
+                    <h1 className="text-5xl font-black text-white tracking-tighter">{currentChannel.name}</h1>
+                    <p className="text-zinc-500 text-lg font-medium italic">"Enjoy your stream on VibeStream Premium."</p>
+                    
+                    <div className="flex flex-wrap items-center gap-3 pt-2">
+                      <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-white/[0.03] border border-white/5 text-xs font-bold text-zinc-400">
+                        <div className={`w-2 h-2 rounded-full ${streamStatus === 'playing' ? 'bg-green-500 animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-zinc-600'}`} />
+                        {streamStatus.toUpperCase()} STREAM
+                      </div>
+                    </div>
+                  </div>
 
-              <div className="p-6 rounded-[2rem] bg-white/[0.02] border border-white/5 hover:border-indigo-500/30 transition-all group relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                  <Layers size={60} />
+                  <div className="flex items-center gap-3">
+                    <button 
+                      onClick={openInVLC}
+                      className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-white/[0.03] border border-white/5 text-zinc-300 hover:text-white hover:bg-white/[0.06] transition-all font-black text-xs uppercase tracking-widest active:scale-95"
+                    >
+                      <ExternalLink size={18} />
+                      Watch in VLC
+                    </button>
+                    <button 
+                      onClick={() => playChannel(currentChannel)}
+                      className="flex items-center gap-3 px-8 py-4 rounded-2xl bg-indigo-500 hover:bg-indigo-600 text-white transition-all font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-500/20 active:scale-95"
+                    >
+                      <RefreshCw size={18} className={streamStatus === 'loading' ? 'animate-spin' : ''} />
+                      Refresh Stream
+                    </button>
+                  </div>
                 </div>
-                <Layers className="text-indigo-500 mb-5 group-hover:scale-110 transition-transform" size={28} />
-                <h4 className="font-black text-sm uppercase tracking-widest mb-3">Smart Grouping</h4>
-                <p className="text-[11px] text-zinc-500 leading-relaxed font-medium">Filter channel berdasarkan kategori yang diekstrak otomatis dari playlist M3U.</p>
-              </div>
 
-              <div className="p-6 rounded-[2rem] bg-white/[0.02] border border-white/5 hover:border-indigo-500/30 transition-all group relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                  <Settings2 size={60} />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-6 rounded-3xl bg-white/[0.02] border border-white/5 space-y-4 hover:bg-white/[0.04] transition-all group">
+                    <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-transform">
+                      <ShieldCheck size={24} />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-white text-sm uppercase tracking-widest mb-1">Encrypted Stream</h4>
+                      <p className="text-zinc-500 text-xs leading-relaxed">Secure end-to-end HLS streaming protection.</p>
+                    </div>
+                  </div>
+                  <div className="p-6 rounded-3xl bg-white/[0.02] border border-white/5 space-y-4 hover:bg-white/[0.04] transition-all group">
+                    <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform">
+                      <Zap size={24} />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-white text-sm uppercase tracking-widest mb-1">Low Latency</h4>
+                      <p className="text-zinc-500 text-xs leading-relaxed">Optimized buffer for near real-time playback.</p>
+                    </div>
+                  </div>
+                  <div className="p-6 rounded-3xl bg-white/[0.02] border border-white/5 space-y-4 hover:bg-white/[0.04] transition-all group">
+                    <div className="w-12 h-12 rounded-2xl bg-pink-500/10 flex items-center justify-center text-pink-400 group-hover:scale-110 transition-transform">
+                      <Shield size={24} />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-white text-sm uppercase tracking-widest mb-1">Auto Recovery</h4>
+                      <p className="text-zinc-500 text-xs leading-relaxed">Smart fallback proxying for broken links.</p>
+                    </div>
+                  </div>
                 </div>
-                <Settings2 className="text-green-500 mb-5 group-hover:scale-110 transition-transform" size={28} />
-                <h4 className="font-black text-sm uppercase tracking-widest mb-3">Multi-Bitrate</h4>
-                <p className="text-[11px] text-zinc-500 leading-relaxed font-medium">Pilih kualitas resolusi (HD/SD) secara manual untuk menghemat kuota Anda.</p>
               </div>
-            </div>
+            )}
           </div>
-        </main>
-      </div>
+        </div>
+      </main>
+    </div>
+
+      {/* Global Status Bar */}
+      <footer className="h-10 px-6 bg-zinc-950 border-t border-white/5 flex items-center justify-between z-50">
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2 text-zinc-500">
+            <Radio size={12} className="text-indigo-400" />
+            <span className="text-[10px] font-black uppercase tracking-widest">{channels.length} Channels Loaded</span>
+          </div>
+          <div className="h-3 w-px bg-white/5" />
+          <div className="flex items-center gap-2 text-zinc-500">
+            <Activity size={12} className="text-green-500" />
+            <span className="text-[10px] font-black uppercase tracking-widest">System Operational</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest text-zinc-600">
+          <span>&copy; 2026 VibeStream Premium</span>
+          <div className="flex items-center gap-1 text-indigo-500/50">
+            <Zap size={10} />
+            <span>High Speed M3U Engine</span>
+          </div>
+        </div>
+      </footer>
+
+      {/* Custom Scrollbar Styles */}
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(99, 102, 241, 0.3);
+        }
+        .glass {
+          background: rgba(9, 9, 11, 0.8);
+          backdrop-filter: blur(20px);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+      `}</style>
     </div>
   );
 }
