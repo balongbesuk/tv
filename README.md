@@ -4,14 +4,15 @@ VibeStream adalah aplikasi pemutar IPTV berbasis web yang modern, cepat, dan kay
 
 ## ✨ Fitur Utama
 
-- **🚀 Smart Auto-Proxy**: Secara otomatis mencoba berbagai jalur proxy untuk memutar siaran yang terblokir atau bermasalah.
-- **🔍 Global Status Scan**: Deteksi otomatis channel yang aktif (Online) atau mati (Offline) secara massal.
+- **🚀 Direct Play Optimized**: Inisialisasi streaming yang cepat dan stabil tanpa beban proxy pihak ketiga yang sering menyebabkan kegagalan.
+- **🔍 Global Status Scan**: Deteksi otomatis channel yang aktif (Online) atau mati (Offline) secara massal untuk memilah siaran yang berfungsi.
 - **⭐ Golden Favorites**: Simpan channel favorit Anda dengan kategori eksklusif bertema emas.
-- **🕒 Watch History**: Akses cepat ke 15 channel terakhir yang Anda tonton.
-- **🖼️ Picture-in-Picture (PIP)**: Tonton siaran favorit sambil melakukan aktivitas lain di browser.
-- **⚙️ Multi-Bitrate Switcher**: Pilih resolusi video secara manual (Auto/HD/SD) untuk menghemat kuota.
-- **🌐 Update Playlist**: Pilih dari berbagai sumber playlist stabil atau masukkan link M3U Anda sendiri.
-- **🎬 VLC Deep Link**: Putar channel langsung di aplikasi VLC hanya dengan satu klik.
+- **📁 Multi-Category Support**: Satu saluran dapat masuk ke dalam berbagai kategori sekaligus (News, Sports, Entertainment).
+- **🕒 Watch History**: Akses cepat ke 15 channel terakhir yang Anda tonton secara otomatis.
+- **⚙️ Multi-Bitrate Switcher**: Pilih resolusi video secara manual (Auto/HD/SD) untuk menghemat kuota atau mendapatkan kualitas terbaik.
+- **🌐 Playlist Management**: Pilih dari berbagai sumber playlist stabil atau masukkan link M3U Anda sendiri.
+- **🎬 VLC Integration & Copy Link**: Putar channel langsung di aplikasi VLC hanya dengan satu klik atau salin link untuk player eksternal lainnya.
+- **📱 Mobile Responsive**: Desain premium yang dioptimalkan untuk perangkat mobile maupun desktop.
 
 ## 🛠️ Teknologi
 
@@ -22,7 +23,7 @@ VibeStream adalah aplikasi pemutar IPTV berbasis web yang modern, cepat, dan kay
 
 ## 🚀 Deployment
 
-Proyek ini dikonfigurasi untuk deployment otomatis ke **GitHub Pages** menggunakan GitHub Actions.
+Proyek ini dikonfigurasi untuk deployment otomatis ke **GitHub Pages** atau platform static hosting lainnya menggunakan GitHub Actions.
 
 ---
 Dibuat dengan ❤️ untuk komunitas pecinta streaming.
