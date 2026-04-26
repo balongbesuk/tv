@@ -83,7 +83,7 @@ export default function Home() {
   const [playlistRaw, setPlaylistRaw] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState({ current: 0, total: 0 });
-  const [autoProxyMode, setAutoProxyMode] = useState(true);
+  const [autoProxyMode, setAutoProxyMode] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   
   // Quality Selection States
@@ -94,6 +94,11 @@ export default function Home() {
 
   useEffect(() => {
     setIsMounted(true);
+    
+    // Auto-open sidebar on desktop
+    if (window.innerWidth >= 1024) {
+      setIsSidebarOpen(true);
+    }
     
     const savedFavs = localStorage.getItem('vibestream_favs');
     const savedHistory = localStorage.getItem('vibestream_history');
