@@ -149,8 +149,9 @@ export default function Home() {
     localStorage.setItem('vibestream_history', JSON.stringify(newHistory));
   };
 
-  const playChannel = async (channel: Channel) => {
+    const playChannel = async (channel: Channel) => {
     const playbackId = ++playbackIdRef.current;
+    const abortController = new AbortController();
     
     setCurrentChannel(channel);
     addToHistory(channel.id);
@@ -175,11 +176,9 @@ export default function Home() {
         let resolved = false;
         const safeResolve = (value: boolean) => {
           if (resolved) return;
-          // Only resolve if this is still the current playback request
-          if (playbackIdRef.current !== playbackId) {
-            return;
-          }
+          if (playbackIdRef.current !== playbackId) return;
           resolved = true;
+          abortController.abort();
           resolve(value);
         };
 
@@ -232,44 +231,48 @@ export default function Home() {
             safeResolve(false);
           }
 
-          setTimeout(() => {
+          const timeoutId = setTimeout(() => {
             if (!resolved && playbackIdRef.current === playbackId) {
               hls.destroy();
               if (hlsRef.current === hls) hlsRef.current = null;
               safeResolve(false);
             }
-          }, 12000);
+          }, 15000);
+          
+          abortController.signal.addEventListener('abort', () => clearTimeout(timeoutId));
 
         } else if (videoRef.current?.canPlayType('application/vnd.apple.mpegurl')) {
           const video = videoRef.current;
           video.src = url;
           
           const onPlay = () => {
-            if (playbackIdRef.current !== playbackId) {
-              video.removeEventListener('playing', onPlay);
-              video.removeEventListener('error', onError);
-              return;
-            }
             video.removeEventListener('playing', onPlay);
             video.removeEventListener('error', onError);
-            safeResolve(true);
+            if (playbackIdRef.current === playbackId) safeResolve(true);
           };
           
           const onError = () => {
-            if (playbackIdRef.current !== playbackId) {
-              video.removeEventListener('playing', onPlay);
-              video.removeEventListener('error', onError);
-              return;
-            }
             video.removeEventListener('playing', onPlay);
             video.removeEventListener('error', onError);
-            safeResolve(false);
+            if (playbackIdRef.current === playbackId) safeResolve(false);
           };
 
           video.addEventListener('playing', onPlay);
           video.addEventListener('error', onError);
           video.play().catch(() => {
             if (playbackIdRef.current === playbackId) safeResolve(false);
+          });
+
+          const timeoutId = setTimeout(() => {
+            video.removeEventListener('playing', onPlay);
+            video.removeEventListener('error', onError);
+            if (playbackIdRef.current === playbackId) safeResolve(false);
+          }, 15000);
+
+          abortController.signal.addEventListener('abort', () => {
+            video.removeEventListener('playing', onPlay);
+            video.removeEventListener('error', onError);
+            clearTimeout(timeoutId);
           });
         } else {
           safeResolve(false);
@@ -320,24 +323,68 @@ export default function Home() {
     const targetChannels = [...channels];
     setScanProgress({ current: 0, total: targetChannels.length });
     
-    const batchSize = 3;
+    const batchSize = 5;
     for (let i = 0; i < targetChannels.length; i += batchSize) {
       if (stopScanRef.current) break;
       const batch = targetChannels.slice(i, i + batchSize);
       setChannels(prev => prev.map(c => batch.some(b => b.id === c.id) ? { ...c, status: 'checking' } : c));
       
       const batchResults = await Promise.all(batch.map(async (ch) => {
-        let found = false;
+        let status: Channel['status'] = 'offline';
         try {
-          const res = await fetch(ch.url, { method: 'HEAD', mode: 'no-cors' });
-          if (res.type === 'opaque' || res.ok) found = true;
-        } catch (e) {}
-        return { id: ch.id, status: (found ? 'online' : 'offline') as Channel['status'] };
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 6000);
+          
+          try {
+            // Step 1: Attempt standard fetch (handles CORS servers correctly)
+            // We use GET and a very small range if possible, but standard fetch is fine for manifests
+            const res = await fetch(ch.url, { 
+              signal: controller.signal,
+              headers: { 'Range': 'bytes=0-0' } // Try to minimize data
+            }).catch(() => {
+              // If Range fails, try normal
+              return fetch(ch.url, { signal: controller.signal });
+            });
+            
+            clearTimeout(timeoutId);
+            if (res.ok) {
+              status = 'online';
+            } else if (res.status >= 400) {
+              status = 'offline';
+            }
+          } catch (err: any) {
+            clearTimeout(timeoutId);
+            if (err.name === 'AbortError') {
+              status = 'offline';
+            } else {
+              // Step 2: Fallback to no-cors for restricted servers
+              try {
+                const resNoCors = await fetch(ch.url, { 
+                  method: 'GET', 
+                  mode: 'no-cors', 
+                  signal: AbortSignal.timeout(4000) 
+                });
+                // If it's opaque, the server exists and responded.
+                // We'll mark it online but note that opaque is inherently less certain.
+                if (resNoCors.type === 'opaque') {
+                  status = 'online';
+                } else if (resNoCors.ok) {
+                  status = 'online';
+                }
+              } catch (e) {
+                status = 'offline';
+              }
+            }
+          }
+        } catch (e) {
+          status = 'offline';
+        }
+        return { id: ch.id, status };
       }));
 
       batchResults.forEach(r => updateChannelStatus(r.id, r.status));
       setScanProgress(prev => ({ ...prev, current: i + batch.length }));
-      await new Promise(r => setTimeout(r, 150));
+      await new Promise(r => setTimeout(r, 100));
     }
     setIsScanning(false);
   };
