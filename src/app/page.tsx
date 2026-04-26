@@ -97,8 +97,17 @@ export default function Home() {
     const savedHistory = localStorage.getItem('vibestream_history_v2');
     const savedUrl = localStorage.getItem('vibestream_url');
 
-    if (savedFavs) setFavorites(JSON.parse(savedFavs));
-    if (savedHistory) setHistory(JSON.parse(savedHistory));
+    const cachedStatusRaw = localStorage.getItem('vibestream_status_cache');
+    const cachedStatuses = cachedStatusRaw ? JSON.parse(cachedStatusRaw) : {};
+
+    if (savedFavs) {
+      const favs = JSON.parse(savedFavs);
+      setFavorites(favs.map((c: Channel) => ({ ...c, status: cachedStatuses[c.id] || 'unknown' })));
+    }
+    if (savedHistory) {
+      const hist = JSON.parse(savedHistory);
+      setHistory(hist.map((c: Channel) => ({ ...c, status: cachedStatuses[c.id] || 'unknown' })));
+    }
     if (savedUrl) setM3uUrl(savedUrl);
 
     loadPlaylist(savedUrl || STABLE_SOURCES[0].url);

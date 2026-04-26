@@ -12,6 +12,15 @@ export function parseM3U(content: string): Channel[] {
   const channels: Channel[] = [];
   let currentChannel: Partial<Channel> = {};
 
+  const getHash = (str: string) => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) - hash) + str.charCodeAt(i);
+      hash |= 0;
+    }
+    return Math.abs(hash).toString(36);
+  };
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
 
@@ -24,6 +33,7 @@ export function parseM3U(content: string): Channel[] {
 
       const logoMatch = line.match(/tvg-logo="([^"]+)"/i);
       const groupMatch = line.match(/group-title="([^"]+)"/i);
+      const tvgNameMatch = line.match(/tvg-name="([^"]+)"/i);
 
       let groups = ['Lainnya'];
       if (groupMatch && groupMatch[1]) {
@@ -31,17 +41,25 @@ export function parseM3U(content: string): Channel[] {
         if (parts.length > 0) groups = parts;
       }
 
-      currentChannel.name = name
+      let cleanName = name
         .replace(/\[.*\]/g, '')
         .replace(/\(.*\)/g, '')
         .replace(/HD|SD|FHD|4K/gi, '')
-        .trim() || 'Unknown Channel';
+        .trim();
+      
+      // Fallback to tvg-name if display name is generic or empty
+      if ((!cleanName || cleanName.toUpperCase() === 'LAINNYA' || cleanName.toUpperCase() === 'UNKNOWN') && tvgNameMatch) {
+        cleanName = tvgNameMatch[1];
+      }
 
+      currentChannel.name = cleanName || 'Unknown Channel';
       currentChannel.logo = logoMatch ? logoMatch[1] : '';
       currentChannel.groups = groups;
     } else if (line.startsWith('http')) {
       currentChannel.url = line;
-      currentChannel.id = btoa(unescape(encodeURIComponent((currentChannel.name || '') + line))).slice(0, 16);
+      // Combined hash to prevent collisions on similar URLs/Names
+      const seed = (currentChannel.name || '') + line;
+      currentChannel.id = getHash(seed) + getHash(line.split('').reverse().join('')); 
       channels.push(currentChannel as Channel);
       currentChannel = {};
     }
