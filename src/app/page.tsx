@@ -89,6 +89,7 @@ export default function Home() {
   const [levels, setLevels] = useState<any[]>([]);
   const [currentLevel, setCurrentLevel] = useState<number>(-1);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
+  const [activeUrl, setActiveUrl] = useState<string>('');
 
   useEffect(() => {
     setIsMounted(true);
@@ -143,6 +144,13 @@ export default function Home() {
       setIsLoading(false);
     }
   };
+
+  // Re-play channel when proxy settings change
+  useEffect(() => {
+    if (currentChannel && !isLoading) {
+      playChannel(currentChannel);
+    }
+  }, [useProxy, activeProxy]);
 
   const addToHistory = (id: string) => {
     const newHistory = [id, ...history.filter(h => h !== id)].slice(0, 15);
@@ -208,6 +216,7 @@ export default function Home() {
       const okDirect = await tryPlay(channel.url);
       if (okDirect) {
         setStreamStatus('playing');
+        setActiveUrl(channel.url);
         updateChannelStatus(channel.id, 'online');
         return;
       }
@@ -217,6 +226,7 @@ export default function Home() {
         const okProxy = await tryPlay(proxyUrl);
         if (okProxy) {
           setStreamStatus('playing');
+          setActiveUrl(proxyUrl);
           updateChannelStatus(channel.id, 'online');
           return;
         }
@@ -231,6 +241,7 @@ export default function Home() {
       const ok = await tryPlay(finalUrl);
       if (ok) {
         setStreamStatus('playing');
+        setActiveUrl(finalUrl);
         updateChannelStatus(channel.id, 'online');
       } else {
         setStreamStatus('error');
@@ -328,7 +339,10 @@ export default function Home() {
 
   const openInVLC = () => {
     if (currentChannel) {
-      window.location.href = `vlc://${currentChannel.url}`;
+      const urlToOpen = activeUrl || currentChannel.url;
+      // Use intent for Android VLC if possible, or just the vlc:// protocol
+      // vlc:// is more universal for desktop and mobile apps
+      window.location.href = `vlc://${urlToOpen}`;
     }
   };
 
@@ -380,26 +394,16 @@ export default function Home() {
   if (!isMounted) return <div className="h-screen bg-zinc-950 flex items-center justify-center"><Loader2 className="animate-spin text-indigo-500" /></div>;
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-zinc-950 text-zinc-100 font-[family-name:var(--font-outfit)]">
+    <div className="flex flex-col min-h-screen bg-zinc-950 text-zinc-100 font-[family-name:var(--font-outfit)]">
       {/* Navigation */}
       <nav className="h-16 px-4 md:px-8 flex items-center justify-between glass sticky top-0 z-50">
         <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 active:scale-95 transition-transform">
             <Play className="fill-white text-white translate-x-0.5" size={20} />
           </div>
-          <span className="text-xl font-black tracking-tight hidden sm:block bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-500 group-hover:from-indigo-400 group-hover:to-white transition-all">VibeStream</span>
+          <span className="text-lg md:text-xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-500 group-hover:from-indigo-400 group-hover:to-white transition-all">VibeStream</span>
         </div>
 
-        <div className="flex-1 max-w-xl mx-4 relative group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-indigo-400 transition-colors" size={18} />
-          <input 
-            type="text" 
-            placeholder="Search channels, series, or groups..."
-            className="w-full bg-white/[0.03] border border-white/5 rounded-2xl py-2.5 pl-12 pr-4 outline-none focus:border-indigo-500/50 focus:bg-white/[0.05] transition-all text-sm placeholder:text-zinc-600 shadow-inner"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
 
         <div className="flex items-center gap-2 md:gap-4">
           <button 
@@ -422,9 +426,9 @@ export default function Home() {
             <button 
               onClick={() => setShowSettings(!showSettings)}
               className="p-2.5 bg-white/[0.03] border border-white/5 rounded-xl text-zinc-400 hover:text-indigo-400 hover:bg-white/[0.05] transition-all shadow-sm"
-              title="Playlist Sources"
+              title="Settings"
             >
-              <Globe size={20} />
+              <Settings size={20} />
             </button>
             
             {showSettings && (
@@ -497,11 +501,11 @@ export default function Home() {
         </div>
       </nav>
 
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="flex flex-1 relative">
         {/* Sidebar */}
         <aside className={`
-          absolute md:relative inset-y-0 left-0 z-40 bg-zinc-950/95 md:bg-zinc-950/40 backdrop-blur-3xl
-          w-80 border-r border-white/5 flex flex-col transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1)
+          fixed md:sticky top-16 z-50 bg-zinc-950/95 md:bg-zinc-950/40 backdrop-blur-3xl
+          w-80 h-[calc(100vh-64px)] border-r border-white/5 flex flex-col transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1)
           ${isSidebarOpen ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0 md:w-0 md:border-none'}
         `}>
           <div className="p-4 md:p-6 space-y-5">
@@ -535,41 +539,51 @@ export default function Home() {
                 </button>
               </div>
             </div>
-            
-            <div className="space-y-3">
+
+            <div className="flex items-center gap-2">
+              {/* Search Bar */}
+              <div className="relative flex-1 group/search">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within/search:text-indigo-400 transition-colors pointer-events-none" size={16} />
+                <input 
+                  type="text" 
+                  placeholder="Search..."
+                  className="w-full bg-white/[0.02] border border-white/5 rounded-2xl py-3 pl-12 pr-4 outline-none focus:border-indigo-500/50 focus:bg-white/[0.04] transition-all text-sm placeholder:text-zinc-600 shadow-inner font-medium"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+
+              {/* Category Filter - Icon Only */}
               <div className="relative group/cat">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within/cat:text-indigo-400 transition-colors">
-                  <Filter size={16} />
-                </div>
                 <select 
                   value={currentFilter}
                   onChange={(e) => setCurrentFilter(e.target.value)}
-                  className="w-full bg-white/[0.02] border border-white/5 rounded-2xl py-3 pl-12 pr-4 appearance-none outline-none focus:border-indigo-500/50 focus:bg-white/[0.04] transition-all text-sm font-bold cursor-pointer"
+                  className="absolute inset-0 opacity-0 cursor-pointer z-10 w-full h-full"
+                  title="Filter Category"
                 >
                   {categoryFilters.map(cat => (
                     <option key={cat.name} value={cat.name} className="bg-zinc-900">{cat.name}</option>
                   ))}
                 </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600 pointer-events-none">
-                  <ChevronDown size={14} />
+                <div className={`p-3 rounded-2xl border transition-all ${currentFilter !== 'Semua' ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400' : 'bg-white/[0.02] border-white/5 text-zinc-500 group-hover/cat:text-indigo-400 group-hover/cat:border-indigo-500/30'}`}>
+                  <Filter size={18} />
                 </div>
               </div>
 
+              {/* Group Filter - Icon Only */}
               <div className="relative group/grp">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within/grp:text-indigo-400 transition-colors">
-                  <Layers size={16} />
-                </div>
                 <select 
                   value={currentGroup}
                   onChange={(e) => setCurrentGroup(e.target.value)}
-                  className="w-full bg-white/[0.02] border border-white/5 rounded-2xl py-3 pl-12 pr-4 appearance-none outline-none focus:border-indigo-500/50 focus:bg-white/[0.04] transition-all text-sm font-bold cursor-pointer"
+                  className="absolute inset-0 opacity-0 cursor-pointer z-10 w-full h-full"
+                  title="Filter Group"
                 >
                   {groups.map(group => (
                     <option key={group} value={group} className="bg-zinc-900">{group}</option>
                   ))}
                 </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600 pointer-events-none">
-                  <ChevronDown size={14} />
+                <div className={`p-3 rounded-2xl border transition-all ${currentGroup !== 'Semua' ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400' : 'bg-white/[0.02] border-white/5 text-zinc-500 group-hover/grp:text-indigo-400 group-hover/grp:border-indigo-500/30'}`}>
+                  <Layers size={18} />
                 </div>
               </div>
             </div>
@@ -644,122 +658,127 @@ export default function Home() {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 flex flex-col min-w-0 bg-black/20 relative overflow-hidden">
-          <div className="flex-1 p-0 md:p-4 flex flex-col overflow-y-auto custom-scrollbar">
+        <main className="flex-1 flex flex-col min-w-0 bg-black/20 relative">
+          <div className="flex-1 p-0 md:p-4 pb-28 md:pb-4 flex flex-col">
             <div className="max-w-[1600px] mx-auto w-full p-4 md:p-6 space-y-8">
               {/* Player Section - Maximized */}
-              <div className="relative aspect-video w-full bg-black rounded-[2rem] md:rounded-[3rem] overflow-hidden shadow-[0_30px_100px_-20px_rgba(0,0,0,0.5)] border border-white/5 group/player">
-              {currentChannel ? (
-                <>
-                  <video 
-                    ref={videoRef} 
-                    className="w-full h-full object-contain"
-                    controls
-                    playsInline
-                  />
-                  
-                  {/* Custom Player Overlays */}
-                  {(streamStatus === 'loading' || streamStatus === 'auto-proxying') && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/80 backdrop-blur-sm z-10">
-                      <div className="relative">
-                        <Loader2 className="animate-spin text-indigo-500" size={48} />
-                        <div className="absolute inset-0 blur-xl bg-indigo-500/20 animate-pulse" />
+              <div className="relative w-full group/player">
+                <div className="relative aspect-video w-full bg-black rounded-[2rem] md:rounded-[3rem] overflow-hidden shadow-[0_30px_100px_-20px_rgba(0,0,0,0.5)] border border-white/5">
+                  {currentChannel ? (
+                    <>
+                      <video 
+                        ref={videoRef} 
+                        className="w-full h-full object-contain"
+                        controls
+                        playsInline
+                      />
+                      
+                      {/* Custom Player Overlays */}
+                      {(streamStatus === 'loading' || streamStatus === 'auto-proxying') && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/80 backdrop-blur-sm z-10">
+                          <div className="relative">
+                            <Loader2 className="animate-spin text-indigo-500" size={48} />
+                            <div className="absolute inset-0 blur-xl bg-indigo-500/20 animate-pulse" />
+                          </div>
+                          <p className="mt-6 text-sm font-black uppercase tracking-[0.3em] text-white animate-pulse">
+                            {streamStatus === 'auto-proxying' ? 'Auto-Proxy Active...' : 'Buffering Stream...'}
+                          </p>
+                        </div>
+                      )}
+
+                      {streamStatus === 'error' && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/95 backdrop-blur-xl z-[35] p-4 md:p-8 text-center animate-in fade-in zoom-in duration-300">
+                          <div className="w-12 h-12 md:w-20 md:h-20 rounded-full bg-red-500/10 flex items-center justify-center mb-4 md:mb-6 border border-red-500/20 shadow-[0_0_30px_rgba(239,68,68,0.1)]">
+                            <WifiOff className="text-red-500 w-6 h-6 md:w-10 md:h-10" />
+                          </div>
+                          <h3 className="text-lg md:text-xl font-black text-white mb-1 md:mb-2 uppercase tracking-tight">Stream Unavailable</h3>
+                          <p className="text-zinc-500 text-[10px] md:text-sm max-w-[200px] md:max-w-xs mb-6 md:mb-8 leading-relaxed font-medium">
+                            This channel is currently offline or requires a proxy to play.
+                          </p>
+                          <button 
+                            onClick={() => playChannel(currentChannel)}
+                            className="px-6 py-2.5 md:px-8 md:py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl md:rounded-2xl text-[10px] md:text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-red-500/20 active:scale-95"
+                          >
+                            Retry Connection
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center">
+                      <div className="w-24 h-24 rounded-[2rem] bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center mb-8 border border-white/5 relative">
+                        <Play className="text-indigo-400 fill-indigo-400/20" size={40} />
+                        <div className="absolute inset-0 blur-3xl bg-indigo-500/10 rounded-full" />
                       </div>
-                      <p className="mt-6 text-sm font-black uppercase tracking-[0.3em] text-white animate-pulse">
-                        {streamStatus === 'auto-proxying' ? 'Auto-Proxy Active...' : 'Buffering Stream...'}
+                      <h2 className="text-3xl font-black text-white tracking-tight mb-3">Ready to Stream</h2>
+                      <p className="text-zinc-500 text-sm max-w-sm leading-relaxed">
+                        Select a channel from the explorer to start watching your favorite content in premium quality.
                       </p>
                     </div>
                   )}
+                </div>
 
-                  {streamStatus === 'error' && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/90 backdrop-blur-md z-10 p-8 text-center">
-                      <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center mb-6 border border-red-500/20">
-                        <WifiOff className="text-red-500" size={40} />
-                      </div>
-                      <h3 className="text-xl font-black text-white mb-2">Stream Unavailable</h3>
-                      <p className="text-zinc-400 text-sm max-w-xs mb-8 leading-relaxed">
-                        This channel is currently offline or requires a proxy to play.
-                      </p>
-                      <div className="flex gap-3">
-                        <button 
-                          onClick={() => playChannel(currentChannel)}
-                          className="px-8 py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/20 active:scale-95"
-                        >
-                          Retry Connection
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Quality Selector Button - TOP RIGHT */}
-                  <div className="absolute top-6 right-6 z-20 flex gap-2">
+                {currentChannel && (
+                  /* Quality Selector Button - TOP RIGHT (Outside overflow-hidden) */
+                  <div className="absolute top-4 right-4 md:top-8 md:right-8 z-30 flex gap-2">
                     <div className="relative">
                       <button 
                         onClick={() => setShowQualityMenu(!showQualityMenu)}
-                        className="p-3 bg-black/40 hover:bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl text-white transition-all active:scale-95 shadow-2xl"
+                        className="p-2.5 md:p-4 bg-black/60 hover:bg-black/80 backdrop-blur-2xl border border-white/10 rounded-2xl text-white transition-all active:scale-95 shadow-2xl group/btn"
                         title="Stream Quality"
                       >
-                        <Settings2 size={20} />
+                        <Settings2 size={18} className="md:w-5 md:h-5" />
+                        {levels.length > 0 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />}
                       </button>
                       
                       {showQualityMenu && levels.length > 0 && (
-                        <div className="absolute top-full right-0 mt-3 w-48 bg-zinc-900/95 border border-white/10 rounded-3xl shadow-2xl overflow-hidden backdrop-blur-2xl py-2 z-50">
+                        <div className="absolute top-full right-0 mt-3 w-48 bg-zinc-900/95 border border-white/10 rounded-3xl shadow-2xl overflow-hidden backdrop-blur-2xl py-2 z-[60] animate-in fade-in zoom-in-95 duration-200 origin-top-right">
                           <div className="px-4 py-2 border-b border-white/5 mb-1">
                             <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Quality Levels</span>
                           </div>
-                          <button
-                            onClick={() => switchLevel(-1)}
-                            className={`w-full text-left px-4 py-3 text-xs font-bold transition-all flex items-center justify-between ${
-                              currentLevel === -1 ? 'text-indigo-400 bg-indigo-500/10' : 'text-zinc-400 hover:text-white hover:bg-white/5'
-                            }`}
-                          >
-                            Auto Quality
-                            {currentLevel === -1 && <CheckCircle2 size={14} />}
-                          </button>
-                          {levels.map((level, idx) => (
+                          <div className="max-h-60 overflow-y-auto custom-scrollbar">
                             <button
-                              key={idx}
-                              onClick={() => switchLevel(idx)}
+                              onClick={() => switchLevel(-1)}
                               className={`w-full text-left px-4 py-3 text-xs font-bold transition-all flex items-center justify-between ${
-                                currentLevel === idx ? 'text-indigo-400 bg-indigo-500/10' : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                                currentLevel === -1 ? 'text-indigo-400 bg-indigo-500/10' : 'text-zinc-400 hover:text-white hover:bg-white/5'
                               }`}
                             >
-                              {level.height ? `${level.height}p` : `Level ${idx + 1}`}
-                              {currentLevel === idx && <CheckCircle2 size={14} />}
+                              Auto Quality
+                              {currentLevel === -1 && <CheckCircle2 size={14} />}
                             </button>
-                          ))}
+                            {levels.map((level, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => switchLevel(idx)}
+                                className={`w-full text-left px-4 py-3 text-xs font-bold transition-all flex items-center justify-between ${
+                                  currentLevel === idx ? 'text-indigo-400 bg-indigo-500/10' : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                                }`}
+                              >
+                                {level.height ? `${level.height}p` : `Level ${idx + 1}`}
+                                {currentLevel === idx && <CheckCircle2 size={14} />}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
                     <button 
                       onClick={togglePIP}
-                      className="p-3 bg-black/40 hover:bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl text-white transition-all active:scale-95 shadow-2xl"
+                      className="p-2.5 md:p-4 bg-black/60 hover:bg-black/80 backdrop-blur-2xl border border-white/10 rounded-2xl text-white transition-all active:scale-95 shadow-2xl"
                       title="Picture in Picture"
                     >
-                      <Layers size={20} />
+                      <Layers size={18} className="md:w-5 md:h-5" />
                     </button>
                     <button 
                       onClick={() => videoRef.current?.requestFullscreen()}
-                      className="p-3 bg-black/40 hover:bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl text-white transition-all active:scale-95 shadow-2xl"
+                      className="p-2.5 md:p-4 bg-black/60 hover:bg-black/80 backdrop-blur-2xl border border-white/10 rounded-2xl text-white transition-all active:scale-95 shadow-2xl"
                       title="Fullscreen"
                     >
-                      <Maximize2 size={20} />
+                      <Maximize2 size={18} className="md:w-5 md:h-5" />
                     </button>
                   </div>
-                </>
-              ) : (
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center">
-                  <div className="w-24 h-24 rounded-[2rem] bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center mb-8 border border-white/5 relative">
-                    <Play className="text-indigo-400 fill-indigo-400/20" size={40} />
-                    <div className="absolute inset-0 blur-3xl bg-indigo-500/10 rounded-full" />
-                  </div>
-                  <h2 className="text-3xl font-black text-white tracking-tight mb-3">Ready to Stream</h2>
-                  <p className="text-zinc-500 text-sm max-w-sm leading-relaxed">
-                    Select a channel from the explorer to start watching your favorite content in premium quality.
-                  </p>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
 
             {/* Info Section */}
             {currentChannel && (
@@ -782,17 +801,17 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto px-4 sm:px-0">
                     <button 
                       onClick={openInVLC}
-                      className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-white/[0.03] border border-white/5 text-zinc-300 hover:text-white hover:bg-white/[0.06] transition-all font-black text-xs uppercase tracking-widest active:scale-95"
+                      className="flex items-center justify-center gap-3 px-6 py-4 rounded-2xl bg-white/[0.03] border border-white/5 text-zinc-300 hover:text-white hover:bg-white/[0.06] transition-all font-black text-xs uppercase tracking-widest active:scale-95 w-full sm:w-auto"
                     >
                       <ExternalLink size={18} />
                       Watch in VLC
                     </button>
                     <button 
                       onClick={() => playChannel(currentChannel)}
-                      className="flex items-center gap-3 px-8 py-4 rounded-2xl bg-indigo-500 hover:bg-indigo-600 text-white transition-all font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-500/20 active:scale-95"
+                      className="flex items-center justify-center gap-3 px-8 py-4 rounded-2xl bg-indigo-500 hover:bg-indigo-600 text-white transition-all font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-500/20 active:scale-95 w-full sm:w-auto"
                     >
                       <RefreshCw size={18} className={streamStatus === 'loading' ? 'animate-spin' : ''} />
                       Refresh Stream
@@ -831,54 +850,91 @@ export default function Home() {
                 </div>
               </div>
             )}
+            </div>
           </div>
-        </div>
-      </main>
-    </div>
+        </main>
+      </div>
 
-      {/* Global Status Bar */}
-      <footer className="h-10 px-6 bg-zinc-950 border-t border-white/5 flex items-center justify-between z-50">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2 text-zinc-500">
-            <Radio size={12} className="text-indigo-400" />
-            <span className="text-[10px] font-black uppercase tracking-widest">{channels.length} Channels Loaded</span>
+      {/* Global Status Bar (Natural Scrolling) */}
+      <footer className="min-h-10 py-6 pb-32 md:pb-8 px-6 bg-zinc-950 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-6 md:gap-0 mt-auto">
+        <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 md:gap-8">
+          <div className="flex items-center gap-2.5 text-zinc-500">
+            <Radio size={14} className="text-indigo-400" />
+            <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest">{channels.length} Channels</span>
           </div>
-          <div className="h-3 w-px bg-white/5" />
-          <div className="flex items-center gap-2 text-zinc-500">
-            <Activity size={12} className="text-green-500" />
-            <span className="text-[10px] font-black uppercase tracking-widest">System Operational</span>
+          <div className="hidden md:block h-4 w-px bg-white/10" />
+          <div className="flex items-center gap-2.5 text-zinc-500">
+            <Activity size={14} className="text-green-500" />
+            <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest">System Operational</span>
           </div>
         </div>
-        <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest text-zinc-600">
-          <span>&copy; 2026 VibeStream Premium</span>
-          <div className="flex items-center gap-1 text-indigo-500/50">
-            <Zap size={10} />
-            <span>High Speed M3U Engine</span>
+        
+        <div className="flex flex-col md:flex-row items-center gap-4 md:gap-8 text-[10px] md:text-[11px] font-black uppercase tracking-widest text-zinc-600">
+          <span className="opacity-50 md:opacity-100 tracking-[0.2em]">&copy; 2026 VIBESTREAM PREMIUM</span>
+          <div className="flex items-center gap-2 text-indigo-500/40 md:text-indigo-500/50">
+            <Zap size={12} fill="currentColor" />
+            <span>High Speed Engine</span>
           </div>
         </div>
       </footer>
 
-      {/* Custom Scrollbar Styles */}
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.05);
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(99, 102, 241, 0.3);
-        }
-        .glass {
-          background: rgba(9, 9, 11, 0.8);
-          backdrop-filter: blur(20px);
-          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        }
-      `}</style>
+      {/* Mobile Sticky Bottom Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 z-[100] md:hidden px-4 pb-6 pt-2 bg-gradient-to-t from-zinc-950 via-zinc-950 to-transparent pointer-events-none">
+        <div className="max-w-md mx-auto bg-zinc-900/90 backdrop-blur-2xl border border-white/10 rounded-2xl p-2 flex items-center justify-around shadow-2xl pointer-events-auto">
+          <button 
+            onClick={() => {
+              setCurrentFilter('Semua');
+              setCurrentGroup('Semua');
+              setSearchQuery('');
+              setIsSidebarOpen(false);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="flex flex-col items-center gap-1 p-2 text-zinc-500 hover:text-white transition-all"
+          >
+            <Tv size={20} className={!isSidebarOpen && currentFilter !== 'Favorites' ? 'text-indigo-400' : ''} />
+            <span className="text-[10px] font-black uppercase tracking-widest">Home</span>
+          </button>
+
+          <button 
+            onClick={() => {
+              setCurrentFilter('Favorit');
+              setIsSidebarOpen(true);
+            }}
+            className="flex flex-col items-center gap-1 p-2 text-zinc-500 hover:text-white transition-all"
+          >
+            <Star size={20} className={currentFilter === 'Favorit' ? 'text-amber-500' : ''} />
+            <span className="text-[10px] font-black uppercase tracking-widest">Saved</span>
+          </button>
+          
+          <button 
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="flex flex-col items-center gap-1 p-2 text-zinc-500 hover:text-white transition-all"
+          >
+            <Search size={20} className={isSidebarOpen ? 'text-indigo-400' : ''} />
+            <span className="text-[10px] font-black uppercase tracking-widest">Explorer</span>
+          </button>
+
+          <button 
+            onClick={() => {
+              const next = !autoProxyMode;
+              setAutoProxyMode(next);
+              localStorage.setItem('vibestream_autoproxy', JSON.stringify(next));
+            }}
+            className="flex flex-col items-center gap-1 p-2 text-zinc-500 hover:text-white transition-all"
+          >
+            <Cpu size={20} className={autoProxyMode ? 'text-indigo-400' : ''} />
+            <span className="text-[10px] font-black uppercase tracking-widest">Proxy</span>
+          </button>
+
+          <button 
+            onClick={() => setShowSettings(!showSettings)}
+            className="flex flex-col items-center gap-1 p-2 text-zinc-500 hover:text-white transition-all"
+          >
+            <Settings size={20} className={showSettings ? 'text-indigo-400' : ''} />
+            <span className="text-[10px] font-black uppercase tracking-widest">Setup</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
