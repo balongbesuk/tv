@@ -25,5 +25,9 @@ VibeStream adalah aplikasi pemutar IPTV berbasis web yang modern, cepat, dan kay
 
 Proyek ini dikonfigurasi untuk deployment otomatis ke **GitHub Pages** atau platform static hosting lainnya menggunakan GitHub Actions.
 
+## 📢 Credits & Data Sources
+
+- **Playlists**: Saluran default disediakan oleh [iptv-org](https://github.com/iptv-org/iptv), sebuah inisiatif luar biasa yang mengumpulkan saluran TV publik dari seluruh dunia.
+
 ---
 Dibuat dengan ❤️ untuk komunitas pecinta streaming.
