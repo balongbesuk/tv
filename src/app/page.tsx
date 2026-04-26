@@ -749,7 +749,7 @@ export default function Home() {
                           </div>
                           <h3 className="text-lg md:text-xl font-black text-white mb-1 md:mb-2 uppercase tracking-tight">Stream Unavailable</h3>
                           <p className="text-zinc-500 text-[10px] md:text-sm max-w-[200px] md:max-w-xs mb-6 md:mb-8 leading-relaxed font-medium">
-                            This channel is currently offline or unreachable.
+                            This channel is currently offline or unreachable. Please try using "Watch in VLC" for better compatibility.
                           </p>
                           <button 
                             onClick={() => playChannel(currentChannel)}
