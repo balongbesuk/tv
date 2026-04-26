@@ -55,6 +55,7 @@ export default function Home() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const stopScanRef = useRef(false);
+  const playbackIdRef = useRef(0);
 
   // --- State ---
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -104,6 +105,10 @@ export default function Home() {
     
     return () => {
       if (hlsRef.current) hlsRef.current.destroy();
+      if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.src = "";
+      }
     };
   }, []);
 
@@ -145,25 +150,38 @@ export default function Home() {
   };
 
   const playChannel = async (channel: Channel) => {
+    const playbackId = ++playbackIdRef.current;
+    
     setCurrentChannel(channel);
     addToHistory(channel.id);
     setLevels([]);
     setCurrentLevel(-1);
     setStreamStatus('loading');
+    setActiveUrl('');
     
+    // Stop any existing playback immediately
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.removeAttribute('src');
+      videoRef.current.load();
+    }
+
     const tryPlay = (url: string): Promise<boolean> => {
       return new Promise((resolve) => {
         let resolved = false;
         const safeResolve = (value: boolean) => {
           if (resolved) return;
+          // Only resolve if this is still the current playback request
+          if (playbackIdRef.current !== playbackId) {
+            return;
+          }
           resolved = true;
           resolve(value);
         };
-
-        if (hlsRef.current) {
-          hlsRef.current.destroy();
-          hlsRef.current = null;
-        }
 
         if (Hls.isSupported()) {
           const hls = new Hls({
@@ -177,6 +195,7 @@ export default function Home() {
           hlsRef.current = hls;
 
           hls.on(Hls.Events.ERROR, (_event: any, data: any) => {
+            if (playbackIdRef.current !== playbackId) return;
             if (!data.fatal) return;
             if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
               hls.startLoad();
@@ -184,25 +203,28 @@ export default function Home() {
               hls.recoverMediaError();
             } else {
               hls.destroy();
-              hlsRef.current = null;
+              if (hlsRef.current === hls) hlsRef.current = null;
               if (resolved) setStreamStatus('error');
               else safeResolve(false);
             }
           });
 
           hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            if (playbackIdRef.current !== playbackId) return;
             setLevels(hls.levels);
             videoRef.current?.play().catch(() => {});
             safeResolve(true);
           });
 
           hls.on(Hls.Events.LEVEL_SWITCHED, (_: any, data: any) => {
+            if (playbackIdRef.current !== playbackId) return;
             setCurrentLevel(data.level);
           });
 
           if (videoRef.current) {
             hls.attachMedia(videoRef.current);
             hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+              if (playbackIdRef.current !== playbackId) return;
               hls.loadSource(url);
               hls.startLoad();
             });
@@ -211,28 +233,44 @@ export default function Home() {
           }
 
           setTimeout(() => {
-            if (!resolved) {
+            if (!resolved && playbackIdRef.current === playbackId) {
               hls.destroy();
-              hlsRef.current = null;
+              if (hlsRef.current === hls) hlsRef.current = null;
               safeResolve(false);
             }
           }, 12000);
 
         } else if (videoRef.current?.canPlayType('application/vnd.apple.mpegurl')) {
-          videoRef.current.src = url;
+          const video = videoRef.current;
+          video.src = url;
+          
           const onPlay = () => {
-            videoRef.current?.removeEventListener('playing', onPlay);
-            videoRef.current?.removeEventListener('error', onError);
+            if (playbackIdRef.current !== playbackId) {
+              video.removeEventListener('playing', onPlay);
+              video.removeEventListener('error', onError);
+              return;
+            }
+            video.removeEventListener('playing', onPlay);
+            video.removeEventListener('error', onError);
             safeResolve(true);
           };
+          
           const onError = () => {
-            videoRef.current?.removeEventListener('playing', onPlay);
-            videoRef.current?.removeEventListener('error', onError);
+            if (playbackIdRef.current !== playbackId) {
+              video.removeEventListener('playing', onPlay);
+              video.removeEventListener('error', onError);
+              return;
+            }
+            video.removeEventListener('playing', onPlay);
+            video.removeEventListener('error', onError);
             safeResolve(false);
           };
-          videoRef.current.addEventListener('playing', onPlay);
-          videoRef.current.addEventListener('error', onError);
-          videoRef.current.play().catch(() => safeResolve(false));
+
+          video.addEventListener('playing', onPlay);
+          video.addEventListener('error', onError);
+          video.play().catch(() => {
+            if (playbackIdRef.current === playbackId) safeResolve(false);
+          });
         } else {
           safeResolve(false);
         }
@@ -240,6 +278,10 @@ export default function Home() {
     };
 
     const ok = await tryPlay(channel.url);
+    
+    // Final check if this request is still valid after awaiting tryPlay
+    if (playbackIdRef.current !== playbackId) return;
+
     if (ok) {
       setStreamStatus('playing');
       setActiveUrl(channel.url);

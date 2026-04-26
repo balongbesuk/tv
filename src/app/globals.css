@@ -3,52 +3,32 @@
 @theme {
   --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
   
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-glass: var(--glass-bg);
-  --color-card: var(--card-bg);
-  --color-input: var(--input-bg);
-  --color-secondary: var(--secondary);
+  --color-background: #09090b;
+  --color-foreground: #f4f4f5;
   --color-primary: #6366f1;
 }
 
 :root {
   --background: #09090b;
   --foreground: #f4f4f5;
-  --glass-bg: rgba(24, 24, 27, 0.4);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --card-bg: rgba(24, 24, 27, 0.6);
-  --input-bg: rgba(255, 255, 255, 0.02);
-  --secondary: rgba(24, 24, 27, 0.8);
-}
-
-:root.light {
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --glass-bg: rgba(255, 255, 255, 0.7);
-  --glass-border: rgba(0, 0, 0, 0.08);
-  --card-bg: rgba(255, 255, 255, 0.8);
-  --input-bg: rgba(0, 0, 0, 0.03);
-  --secondary: rgba(241, 245, 249, 0.8);
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 @layer utilities {
   .glass {
-    background-color: var(--glass-bg);
+    background-color: rgba(24, 24, 27, 0.4);
     backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid var(--glass-border);
+    border: 1px solid rgba(255, 255, 255, 0.1);
   }
   
   .glass-card {
-    background-color: var(--card-bg);
+    background-color: rgba(24, 24, 27, 0.6);
     backdrop-filter: blur(12px) saturate(180%);
-    border: 1px solid var(--glass-border);
+    border: 1px solid rgba(255, 255, 255, 0.05);
   }
 
   .scrollbar-hide {
