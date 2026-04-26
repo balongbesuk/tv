@@ -50,13 +50,6 @@ const STABLE_SOURCES = [
   { name: 'News Channels', url: 'https://iptv-org.github.io/iptv/categories/news.m3u' },
 ];
 
-const PROXIES = [
-  { name: 'AllOrigins', url: 'https://api.allorigins.win/raw?url=' },
-  { name: 'CorsProxy.io', url: 'https://corsproxy.io/?' },
-  { name: 'CodeTabs', url: 'https://api.codetabs.com/v1/proxy?quest=' },
-  { name: 'ThingProxy', url: 'https://thingproxy.freeboard.io/fetch/' },
-];
-
 export default function Home() {
   // --- Refs ---
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -72,18 +65,15 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [m3uUrl, setM3uUrl] = useState(STABLE_SOURCES[0].url);
   const [currentChannel, setCurrentChannel] = useState<Channel | null>(null);
-  const [useProxy, setUseProxy] = useState(false);
-  const [activeProxy, setActiveProxy] = useState(PROXIES[0]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [streamStatus, setStreamStatus] = useState<'standby' | 'loading' | 'playing' | 'error' | 'auto-proxying'>('standby');
+  const [streamStatus, setStreamStatus] = useState<'standby' | 'loading' | 'playing' | 'error'>('standby');
   const [isMounted, setIsMounted] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [copying, setCopying] = useState(false);
   const [playlistRaw, setPlaylistRaw] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState({ current: 0, total: 0 });
-  const [autoProxyMode, setAutoProxyMode] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   
   // Quality Selection States
@@ -91,6 +81,8 @@ export default function Home() {
   const [currentLevel, setCurrentLevel] = useState<number>(-1);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [activeUrl, setActiveUrl] = useState<string>('');
+  const [showCategoryMenu, setShowCategoryMenu] = useState(false);
+  const [showGroupMenu, setShowGroupMenu] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -103,18 +95,12 @@ export default function Home() {
     const savedFavs = localStorage.getItem('vibestream_favs');
     const savedHistory = localStorage.getItem('vibestream_history');
     const savedUrl = localStorage.getItem('vibestream_url');
-    const savedProxy = localStorage.getItem('vibestream_proxy');
-    const savedProxyIndex = localStorage.getItem('vibestream_proxy_index');
-    const savedAutoProxy = localStorage.getItem('vibestream_autoproxy');
 
     if (savedFavs) setFavorites(JSON.parse(savedFavs));
     if (savedHistory) setHistory(JSON.parse(savedHistory));
     if (savedUrl) setM3uUrl(savedUrl);
-    if (savedProxy) setUseProxy(JSON.parse(savedProxy));
-    if (savedProxyIndex) setActiveProxy(PROXIES[parseInt(savedProxyIndex)]);
-    if (savedAutoProxy) setAutoProxyMode(JSON.parse(savedAutoProxy));
 
-    loadPlaylist(savedUrl || STABLE_SOURCES[0].url, JSON.parse(savedProxy || 'false'), PROXIES[parseInt(savedProxyIndex || '0')]);
+    loadPlaylist(savedUrl || STABLE_SOURCES[0].url);
     
     return () => {
       if (hlsRef.current) hlsRef.current.destroy();
@@ -122,12 +108,11 @@ export default function Home() {
   }, []);
 
   // --- Actions ---
-  const loadPlaylist = async (url: string, proxyState: boolean = useProxy, proxyObj = activeProxy) => {
+  const loadPlaylist = async (url: string) => {
     setIsLoading(true);
     setFetchError(null);
     try {
-      const finalUrl = proxyState ? `${proxyObj.url}${encodeURIComponent(url)}` : url;
-      const response = await fetch(finalUrl);
+      const response = await fetch(url);
       if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
       const text = await response.text();
       setPlaylistRaw(text);
@@ -151,12 +136,7 @@ export default function Home() {
     }
   };
 
-  // Re-play channel when proxy settings change
-  useEffect(() => {
-    if (currentChannel && !isLoading) {
-      playChannel(currentChannel);
-    }
-  }, [useProxy, activeProxy]);
+
 
   const addToHistory = (id: string) => {
     const newHistory = [id, ...history.filter(h => h !== id)].slice(0, 15);
@@ -164,95 +144,109 @@ export default function Home() {
     localStorage.setItem('vibestream_history', JSON.stringify(newHistory));
   };
 
-  const playChannel = async (channel: Channel, forceProxy: boolean | null = null, specificProxy: any = null) => {
+  const playChannel = async (channel: Channel) => {
     setCurrentChannel(channel);
     addToHistory(channel.id);
     setLevels([]);
     setCurrentLevel(-1);
+    setStreamStatus('loading');
     
     const tryPlay = (url: string): Promise<boolean> => {
       return new Promise((resolve) => {
-        if (hlsRef.current) hlsRef.current.destroy();
-        
-        if (Hls.isSupported()) {
-          const hls = new Hls({ enableWorker: true, lowLatencyMode: true, manifestLoadingTimeOut: 5000 });
-          hlsRef.current = hls;
-          hls.loadSource(url);
-          hls.attachMedia(videoRef.current!);
-          
-          hls.on(Hls.Events.MANIFEST_PARSED, () => {
-            setLevels(hls.levels);
-            videoRef.current?.play().catch(() => {});
-            resolve(true);
-          });
-          
-          hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
-            setCurrentLevel(data.level);
-          });
+        let resolved = false;
+        const safeResolve = (value: boolean) => {
+          if (resolved) return;
+          resolved = true;
+          resolve(value);
+        };
 
-          hls.on(Hls.Events.ERROR, (_, data) => {
-            if (data.fatal) {
+        if (hlsRef.current) {
+          hlsRef.current.destroy();
+          hlsRef.current = null;
+        }
+
+        if (Hls.isSupported()) {
+          const hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: true,
+            manifestLoadingTimeOut: 10000,
+            manifestLoadingMaxRetry: 1,
+            fragLoadingTimeOut: 10000,
+            levelLoadingTimeOut: 10000,
+          });
+          hlsRef.current = hls;
+
+          hls.on(Hls.Events.ERROR, (_event: any, data: any) => {
+            if (!data.fatal) return;
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+              hls.startLoad();
+            } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              hls.recoverMediaError();
+            } else {
               hls.destroy();
-              resolve(false);
+              hlsRef.current = null;
+              if (resolved) setStreamStatus('error');
+              else safeResolve(false);
             }
           });
 
-          setTimeout(() => { if (hlsRef.current === hls && levels.length === 0) resolve(false); }, 7000);
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            setLevels(hls.levels);
+            videoRef.current?.play().catch(() => {});
+            safeResolve(true);
+          });
+
+          hls.on(Hls.Events.LEVEL_SWITCHED, (_: any, data: any) => {
+            setCurrentLevel(data.level);
+          });
+
+          if (videoRef.current) {
+            hls.attachMedia(videoRef.current);
+            hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+              hls.loadSource(url);
+              hls.startLoad();
+            });
+          } else {
+            safeResolve(false);
+          }
+
+          setTimeout(() => {
+            if (!resolved) {
+              hls.destroy();
+              hlsRef.current = null;
+              safeResolve(false);
+            }
+          }, 12000);
+
         } else if (videoRef.current?.canPlayType('application/vnd.apple.mpegurl')) {
           videoRef.current.src = url;
           const onPlay = () => {
             videoRef.current?.removeEventListener('playing', onPlay);
-            resolve(true);
+            videoRef.current?.removeEventListener('error', onError);
+            safeResolve(true);
           };
           const onError = () => {
+            videoRef.current?.removeEventListener('playing', onPlay);
             videoRef.current?.removeEventListener('error', onError);
-            resolve(false);
+            safeResolve(false);
           };
           videoRef.current.addEventListener('playing', onPlay);
           videoRef.current.addEventListener('error', onError);
-          videoRef.current.play().catch(() => resolve(false));
+          videoRef.current.play().catch(() => safeResolve(false));
         } else {
-          resolve(false);
+          safeResolve(false);
         }
       });
     };
 
-    if (autoProxyMode && forceProxy === null) {
-      setStreamStatus('auto-proxying');
-      const okDirect = await tryPlay(channel.url);
-      if (okDirect) {
-        setStreamStatus('playing');
-        setActiveUrl(channel.url);
-        updateChannelStatus(channel.id, 'online');
-        return;
-      }
-
-      for (const proxy of PROXIES) {
-        const proxyUrl = `${proxy.url}${encodeURIComponent(channel.url)}`;
-        const okProxy = await tryPlay(proxyUrl);
-        if (okProxy) {
-          setStreamStatus('playing');
-          setActiveUrl(proxyUrl);
-          updateChannelStatus(channel.id, 'online');
-          return;
-        }
-      }
+    const ok = await tryPlay(channel.url);
+    if (ok) {
+      setStreamStatus('playing');
+      setActiveUrl(channel.url);
+      updateChannelStatus(channel.id, 'online');
+    } else {
       setStreamStatus('error');
       updateChannelStatus(channel.id, 'offline');
-    } else {
-      setStreamStatus('loading');
-      const targetProxy = specificProxy || activeProxy;
-      const targetUseProxy = forceProxy !== null ? forceProxy : useProxy;
-      const finalUrl = targetUseProxy ? `${targetProxy.url}${encodeURIComponent(channel.url)}` : channel.url;
-      const ok = await tryPlay(finalUrl);
-      if (ok) {
-        setStreamStatus('playing');
-        setActiveUrl(finalUrl);
-        updateChannelStatus(channel.id, 'online');
-      } else {
-        setStreamStatus('error');
-        updateChannelStatus(channel.id, 'offline');
-      }
     }
   };
 
@@ -296,12 +290,6 @@ export default function Home() {
           const res = await fetch(ch.url, { method: 'HEAD', mode: 'no-cors' });
           if (res.type === 'opaque' || res.ok) found = true;
         } catch (e) {}
-        if (!found) {
-          try {
-            const res = await fetch(`${PROXIES[0].url}${encodeURIComponent(ch.url)}`, { method: 'HEAD' });
-            if (res.ok) found = true;
-          } catch (e) {}
-        }
         return { id: ch.id, status: (found ? 'online' : 'offline') as Channel['status'] };
       }));
 
@@ -318,7 +306,7 @@ export default function Home() {
     
     let m3u = '#EXTM3U\n';
     favChannels.forEach(ch => {
-      m3u += `#EXTINF:-1 tvg-logo="${ch.logo || ''}" group-title="${ch.group}",${ch.name}\n${ch.url}\n`;
+      m3u += `#EXTINF:-1 tvg-logo="${ch.logo || ''}" group-title="${ch.groups?.join(';') || 'Lainnya'}",${ch.name}\n${ch.url}\n`;
     });
     const blob = new Blob([m3u], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -343,12 +331,26 @@ export default function Home() {
     }
   };
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopying(true);
+      setTimeout(() => setCopying(false), 2000);
+    });
+  };
+
   const openInVLC = () => {
     if (currentChannel) {
-      const urlToOpen = activeUrl || currentChannel.url;
-      // Use intent for Android VLC if possible, or just the vlc:// protocol
-      // vlc:// is more universal for desktop and mobile apps
-      window.location.href = `vlc://${urlToOpen}`;
+      const url = activeUrl || currentChannel.url;
+      const isAndroid = /Android/i.test(navigator.userAgent);
+      
+      if (isAndroid) {
+        // More reliable Android Intent for VLC
+        const intentUrl = `intent://${url.replace(/^https?:\/\//, '')}#Intent;scheme=${url.split(':')[0]};package=org.videolan.vlc;S.title=${encodeURIComponent(currentChannel.name)};end`;
+        window.location.href = intentUrl;
+      } else {
+        // Standard VLC protocol for Desktop and iOS
+        window.location.href = `vlc://${url}`;
+      }
     }
   };
 
@@ -362,7 +364,8 @@ export default function Home() {
 
   // --- Derived State ---
   const groups = useMemo(() => {
-    const uniqueGroups = Array.from(new Set(channels.map(c => c.group || 'Lainnya')));
+    const allGroups = channels.flatMap(c => c.groups || ['Lainnya']);
+    const uniqueGroups = Array.from(new Set(allGroups));
     return ['Semua', ...uniqueGroups].sort();
   }, [channels]);
 
@@ -378,7 +381,7 @@ export default function Home() {
     const query = searchQuery.toLowerCase().trim();
     return channels.filter(c => {
       const matchesSearch = query === '' || c.name.toLowerCase().includes(query);
-      const matchesGroup = currentGroup === 'Semua' || (c.group || 'Lainnya') === currentGroup;
+      const matchesGroup = currentGroup === 'Semua' || (c.groups || ['Lainnya']).includes(currentGroup);
       
       let matchesCategory = false;
       switch (currentFilter) {
@@ -412,22 +415,6 @@ export default function Home() {
 
 
         <div className="flex items-center gap-2 md:gap-4">
-          <button 
-            onClick={() => {
-              const next = !autoProxyMode;
-              setAutoProxyMode(next);
-              localStorage.setItem('vibestream_autoproxy', JSON.stringify(next));
-            }}
-            className={`hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black border transition-all ${
-              autoProxyMode 
-              ? 'bg-indigo-500/10 border-indigo-500/50 text-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.15)]' 
-              : 'bg-zinc-900/50 border-white/5 text-zinc-500'
-            }`}
-          >
-            <Cpu size={14} className={autoProxyMode ? 'animate-pulse' : ''} />
-            <span className="uppercase tracking-widest">Auto-Proxy</span>
-          </button>
-
           <div className="relative group/source">
             <button 
               onClick={() => {
@@ -563,45 +550,97 @@ export default function Home() {
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within/search:text-indigo-400 transition-colors pointer-events-none" size={16} />
                 <input 
                   type="text" 
-                  placeholder="Search..."
+                  placeholder="Search channels..."
                   className="w-full bg-white/[0.02] border border-white/5 rounded-2xl py-3 pl-12 pr-4 outline-none focus:border-indigo-500/50 focus:bg-white/[0.04] transition-all text-sm placeholder:text-zinc-600 shadow-inner font-medium"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
 
-              {/* Category Filter - Icon Only */}
+              {/* Category Dropdown */}
               <div className="relative group/cat">
-                <select 
-                  value={currentFilter}
-                  onChange={(e) => setCurrentFilter(e.target.value)}
-                  className="absolute inset-0 opacity-0 cursor-pointer z-10 w-full h-full"
+                <button 
+                  onClick={() => {
+                    setShowCategoryMenu(!showCategoryMenu);
+                    setShowGroupMenu(false);
+                  }}
+                  className={`p-3 rounded-2xl border transition-all ${
+                    currentFilter !== 'Semua' 
+                    ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400' 
+                    : 'bg-white/[0.02] border-white/5 text-zinc-500 hover:text-indigo-400 hover:border-indigo-500/30'
+                  }`}
                   title="Filter Category"
                 >
-                  {categoryFilters.map(cat => (
-                    <option key={cat.name} value={cat.name} className="bg-zinc-900">{cat.name}</option>
-                  ))}
-                </select>
-                <div className={`p-3 rounded-2xl border transition-all ${currentFilter !== 'Semua' ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400' : 'bg-white/[0.02] border-white/5 text-zinc-500 group-hover/cat:text-indigo-400 group-hover/cat:border-indigo-500/30'}`}>
-                  <Filter size={18} />
-                </div>
+                  {categoryFilters.find(f => f.name === currentFilter)?.icon || <Filter size={18} />}
+                </button>
+
+                {showCategoryMenu && (
+                  <div className="absolute top-full right-0 mt-2 w-48 bg-zinc-900/95 border border-white/10 rounded-2xl shadow-2xl backdrop-blur-2xl py-2 z-[60] animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+                    <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
+                      {categoryFilters.map((filter) => (
+                        <button
+                          key={filter.name}
+                          onClick={() => {
+                            setCurrentFilter(filter.name);
+                            setShowCategoryMenu(false);
+                          }}
+                          className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all ${
+                            currentFilter === filter.name 
+                            ? 'bg-indigo-500/10 text-indigo-400' 
+                            : 'text-zinc-400 hover:bg-white/5 hover:text-white'
+                          }`}
+                        >
+                          <div className="scale-90 opacity-70">{filter.icon}</div>
+                          <span className="text-[10px] font-black uppercase tracking-widest">{filter.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Group Filter - Icon Only */}
+              {/* Group Dropdown */}
               <div className="relative group/grp">
-                <select 
-                  value={currentGroup}
-                  onChange={(e) => setCurrentGroup(e.target.value)}
-                  className="absolute inset-0 opacity-0 cursor-pointer z-10 w-full h-full"
+                <button 
+                  onClick={() => {
+                    setShowGroupMenu(!showGroupMenu);
+                    setShowCategoryMenu(false);
+                  }}
+                  className={`p-3 rounded-2xl border transition-all ${
+                    currentGroup !== 'Semua' 
+                    ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400' 
+                    : 'bg-white/[0.02] border-white/5 text-zinc-500 hover:text-indigo-400 hover:border-indigo-500/30'
+                  }`}
                   title="Filter Group"
                 >
-                  {groups.map(group => (
-                    <option key={group} value={group} className="bg-zinc-900">{group}</option>
-                  ))}
-                </select>
-                <div className={`p-3 rounded-2xl border transition-all ${currentGroup !== 'Semua' ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400' : 'bg-white/[0.02] border-white/5 text-zinc-500 group-hover/grp:text-indigo-400 group-hover/grp:border-indigo-500/30'}`}>
                   <Layers size={18} />
-                </div>
+                </button>
+
+                {showGroupMenu && (
+                  <div className="absolute top-full right-0 mt-2 w-64 bg-zinc-900/95 border border-white/10 rounded-2xl shadow-2xl backdrop-blur-2xl py-2 z-[60] animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+                    <div className="px-4 py-2 border-b border-white/5 mb-1">
+                      <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Pilih Grup</span>
+                    </div>
+                    <div className="max-h-[350px] overflow-y-auto custom-scrollbar">
+                      {groups.map((group) => (
+                        <button
+                          key={group}
+                          onClick={() => {
+                            setCurrentGroup(group);
+                            setShowGroupMenu(false);
+                          }}
+                          className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all ${
+                            currentGroup === group 
+                            ? 'bg-indigo-500/10 text-indigo-400 border-l-2 border-indigo-500' 
+                            : 'text-zinc-400 hover:bg-white/5 hover:text-white'
+                          }`}
+                        >
+                          <span className="text-[10px] font-black uppercase tracking-widest truncate">{group}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -615,7 +654,7 @@ export default function Home() {
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 md:px-6 pb-12 space-y-2.5 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto px-4 md:px-6 pb-32 md:pb-12 space-y-2.5 custom-scrollbar">
             {isLoading ? (
               <div className="flex flex-col items-center justify-center h-48 text-zinc-600 gap-4">
                 <Loader2 className="animate-spin text-indigo-500" size={32} />
@@ -655,7 +694,7 @@ export default function Home() {
                         {ch.name}
                       </h4>
                     </div>
-                    <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest truncate mt-0.5">{ch.group || 'Lainnya'}</p>
+                    <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest truncate mt-0.5">{ch.groups?.join(', ') || 'Lainnya'}</p>
                   </div>
                   <button 
                     onClick={(e) => toggleFavorite(ch.id, e)}
@@ -691,14 +730,14 @@ export default function Home() {
                       />
                       
                       {/* Custom Player Overlays */}
-                      {(streamStatus === 'loading' || streamStatus === 'auto-proxying') && (
+                      {streamStatus === 'loading' && (
                         <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/80 backdrop-blur-sm z-10">
                           <div className="relative">
                             <Loader2 className="animate-spin text-indigo-500" size={48} />
                             <div className="absolute inset-0 blur-xl bg-indigo-500/20 animate-pulse" />
                           </div>
                           <p className="mt-6 text-sm font-black uppercase tracking-[0.3em] text-white animate-pulse">
-                            {streamStatus === 'auto-proxying' ? 'Auto-Proxy Active...' : 'Buffering Stream...'}
+                            Buffering Stream...
                           </p>
                         </div>
                       )}
@@ -710,7 +749,7 @@ export default function Home() {
                           </div>
                           <h3 className="text-lg md:text-xl font-black text-white mb-1 md:mb-2 uppercase tracking-tight">Stream Unavailable</h3>
                           <p className="text-zinc-500 text-[10px] md:text-sm max-w-[200px] md:max-w-xs mb-6 md:mb-8 leading-relaxed font-medium">
-                            This channel is currently offline or requires a proxy to play.
+                            This channel is currently offline or unreachable.
                           </p>
                           <button 
                             onClick={() => playChannel(currentChannel)}
@@ -825,7 +864,7 @@ export default function Home() {
                   <div className="space-y-4">
                     <div className="flex items-center gap-3">
                       <span className="px-3 py-1 rounded-lg bg-indigo-500/10 text-indigo-400 text-[10px] font-black uppercase tracking-widest border border-indigo-500/20">
-                        {currentChannel.group || 'General'}
+                        {currentChannel.groups?.join(', ') || 'General'}
                       </span>
                     </div>
                     <h1 className="text-5xl font-black text-white tracking-tighter">{currentChannel.name}</h1>
@@ -839,19 +878,26 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto px-4 sm:px-0">
+                  <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto px-4 sm:px-0">
+                    <button 
+                      onClick={() => copyToClipboard(activeUrl || currentChannel.url)}
+                      className="flex items-center justify-center gap-3 px-5 py-4 rounded-2xl bg-white/[0.03] border border-white/5 text-zinc-300 hover:text-white hover:bg-white/[0.06] transition-all font-black text-[10px] uppercase tracking-widest active:scale-95 w-full sm:w-auto min-w-[140px]"
+                    >
+                      {copying ? <CheckCircle2 size={16} className="text-green-500" /> : <Copy size={16} />}
+                      {copying ? 'Copied!' : 'Copy Link'}
+                    </button>
                     <button 
                       onClick={openInVLC}
-                      className="flex items-center justify-center gap-3 px-6 py-4 rounded-2xl bg-white/[0.03] border border-white/5 text-zinc-300 hover:text-white hover:bg-white/[0.06] transition-all font-black text-xs uppercase tracking-widest active:scale-95 w-full sm:w-auto"
+                      className="flex items-center justify-center gap-3 px-5 py-4 rounded-2xl bg-white/[0.03] border border-white/5 text-zinc-300 hover:text-white hover:bg-white/[0.06] transition-all font-black text-[10px] uppercase tracking-widest active:scale-95 w-full sm:w-auto min-w-[140px]"
                     >
-                      <ExternalLink size={18} />
+                      <ExternalLink size={16} />
                       Watch in VLC
                     </button>
                     <button 
                       onClick={() => playChannel(currentChannel)}
-                      className="flex items-center justify-center gap-3 px-8 py-4 rounded-2xl bg-indigo-500 hover:bg-indigo-600 text-white transition-all font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-500/20 active:scale-95 w-full sm:w-auto"
+                      className="flex items-center justify-center gap-3 px-7 py-4 rounded-2xl bg-indigo-500 hover:bg-indigo-600 text-white transition-all font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-500/20 active:scale-95 w-full sm:w-auto min-w-[160px]"
                     >
-                      <RefreshCw size={18} className={streamStatus === 'loading' ? 'animate-spin' : ''} />
+                      <RefreshCw size={16} className={streamStatus === 'loading' ? 'animate-spin' : ''} />
                       Refresh Stream
                     </button>
                   </div>
@@ -878,11 +924,11 @@ export default function Home() {
                   </div>
                   <div className="p-6 rounded-3xl bg-white/[0.02] border border-white/5 space-y-4 hover:bg-white/[0.04] transition-all group">
                     <div className="w-12 h-12 rounded-2xl bg-pink-500/10 flex items-center justify-center text-pink-400 group-hover:scale-110 transition-transform">
-                      <Shield size={24} />
+                      <Sparkles size={24} />
                     </div>
                     <div>
-                      <h4 className="font-black text-white text-sm uppercase tracking-widest mb-1">Auto Recovery</h4>
-                      <p className="text-zinc-500 text-xs leading-relaxed">Smart fallback proxying for broken links.</p>
+                      <h4 className="font-black text-white text-sm uppercase tracking-widest mb-1">HD Quality</h4>
+                      <p className="text-zinc-500 text-xs leading-relaxed">Crystal clear resolution with adaptive bitrate streaming.</p>
                     </div>
                   </div>
                 </div>
@@ -962,18 +1008,6 @@ export default function Home() {
             <span className="text-[10px] font-black uppercase tracking-widest">Explorer</span>
           </button>
 
-          <button 
-            onClick={() => {
-              const next = !autoProxyMode;
-              setAutoProxyMode(next);
-              localStorage.setItem('vibestream_autoproxy', JSON.stringify(next));
-              setShowSettings(false);
-            }}
-            className="flex flex-col items-center gap-1 p-2 text-zinc-500 hover:text-white transition-all"
-          >
-            <Cpu size={20} className={autoProxyMode ? 'text-indigo-400' : ''} />
-            <span className="text-[10px] font-black uppercase tracking-widest">Proxy</span>
-          </button>
 
           <button 
             onClick={() => {
