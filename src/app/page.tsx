@@ -38,7 +38,9 @@ import {
   ChevronRight,
   Info,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { Channel, parseM3U } from '@/utils/iptv';
 
@@ -84,6 +86,8 @@ export default function Home() {
   const [showCategoryMenu, setShowCategoryMenu] = useState(false);
   const [showGroupMenu, setShowGroupMenu] = useState(false);
 
+  const [isDarkMode, setIsDarkMode] = useState(true);
+
   useEffect(() => {
     setIsMounted(true);
     
@@ -95,10 +99,17 @@ export default function Home() {
     const savedFavs = localStorage.getItem('vibestream_favs');
     const savedHistory = localStorage.getItem('vibestream_history');
     const savedUrl = localStorage.getItem('vibestream_url');
+    const savedTheme = localStorage.getItem('vibestream_theme');
 
     if (savedFavs) setFavorites(JSON.parse(savedFavs));
     if (savedHistory) setHistory(JSON.parse(savedHistory));
     if (savedUrl) setM3uUrl(savedUrl);
+    
+    if (savedTheme) {
+      const isDark = savedTheme === 'dark';
+      setIsDarkMode(isDark);
+      if (!isDark) document.documentElement.classList.add('light');
+    }
 
     loadPlaylist(savedUrl || STABLE_SOURCES[0].url);
     
@@ -106,6 +117,17 @@ export default function Home() {
       if (hlsRef.current) hlsRef.current.destroy();
     };
   }, []);
+
+  const toggleTheme = () => {
+    const next = !isDarkMode;
+    setIsDarkMode(next);
+    localStorage.setItem('vibestream_theme', next ? 'dark' : 'light');
+    if (next) {
+      document.documentElement.classList.remove('light');
+    } else {
+      document.documentElement.classList.add('light');
+    }
+  };
 
   // --- Actions ---
   const loadPlaylist = async (url: string) => {
@@ -400,10 +422,10 @@ export default function Home() {
     });
   }, [channels, favorites, history, currentFilter, currentGroup, searchQuery]);
 
-  if (!isMounted) return <div className="h-screen bg-zinc-950 flex items-center justify-center"><Loader2 className="animate-spin text-indigo-500" /></div>;
+  if (!isMounted) return <div className="h-screen bg-background flex items-center justify-center"><Loader2 className="animate-spin text-indigo-500" /></div>;
 
   return (
-    <div className="flex flex-col min-h-screen bg-zinc-950 text-zinc-100 font-[family-name:var(--font-outfit)]">
+    <div className="flex flex-col min-h-screen bg-background text-foreground font-[family-name:var(--font-outfit)] transition-colors duration-300">
       {/* Navigation */}
       <nav className="h-16 px-4 md:px-8 flex items-center justify-between glass sticky top-0 z-50">
         <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
@@ -415,20 +437,28 @@ export default function Home() {
 
 
         <div className="flex items-center gap-2 md:gap-4">
+          <button 
+            onClick={toggleTheme}
+            className="p-2.5 glass rounded-xl text-zinc-400 hover:text-indigo-400 hover:bg-white/[0.05] transition-all shadow-sm"
+            title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          >
+            {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
+
           <div className="relative group/source">
             <button 
               onClick={() => {
                 setShowSettings(!showSettings);
                 setIsSidebarOpen(false);
               }}
-              className="p-2.5 bg-white/[0.03] border border-white/5 rounded-xl text-zinc-400 hover:text-indigo-400 hover:bg-white/[0.05] transition-all shadow-sm"
+              className="p-2.5 bg-card border border-white/5 rounded-xl text-zinc-400 hover:text-indigo-400 hover:bg-white/[0.05] transition-all shadow-sm"
               title="Settings"
             >
               <Settings size={20} />
             </button>
             
             {showSettings && (
-              <div className="absolute right-0 top-full mt-3 w-72 bg-zinc-900/95 border border-white/10 rounded-3xl shadow-2xl z-[100] overflow-hidden backdrop-blur-2xl ring-1 ring-white/10">
+              <div className="absolute right-0 top-full mt-3 w-72 bg-secondary/95 border border-white/10 rounded-3xl shadow-2xl z-[100] overflow-hidden backdrop-blur-2xl ring-1 ring-white/10">
                 <div className="p-5 border-b border-white/5 flex items-center justify-between">
                   <span className="text-xs font-black text-zinc-500 uppercase tracking-[2px]">Settings & Playlist</span>
                   <button onClick={() => setShowSettings(false)} className="hover:text-red-400 transition-colors"><X size={16} /></button>
@@ -455,7 +485,7 @@ export default function Home() {
                     </button>
                   ))}
                   
-                  <div className="p-3 mt-2 bg-black/20 rounded-2xl space-y-3">
+                  <div className="p-3 mt-2 bg-secondary rounded-2xl space-y-3">
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-zinc-600 block uppercase tracking-wider">Custom M3U URL</label>
                       <input 
@@ -489,7 +519,7 @@ export default function Home() {
           
           <button 
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-2.5 bg-zinc-900 rounded-xl border border-white/5 text-zinc-400 hover:text-indigo-400 transition-all active:scale-90"
+            className="p-2.5 bg-secondary rounded-xl border border-white/5 text-zinc-400 hover:text-indigo-400 transition-all active:scale-90"
             title="Toggle Explorer"
           >
             <Menu size={20} />
@@ -500,7 +530,7 @@ export default function Home() {
       <div className="flex flex-1 relative">
         {/* Sidebar */}
         <aside className={`
-          fixed md:sticky top-16 z-50 bg-zinc-950/95 md:bg-zinc-950/40 backdrop-blur-3xl
+          fixed md:sticky top-16 z-50 bg-background/95 md:bg-background/40 backdrop-blur-3xl
           w-80 h-[calc(100vh-64px)] border-r border-white/5 flex flex-col transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1)
           ${isSidebarOpen ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0 md:w-0 md:border-none'}
         `}>
@@ -520,7 +550,7 @@ export default function Home() {
                   className={`p-2 border rounded-xl transition-all shadow-sm ${
                     isScanning 
                     ? 'bg-red-500/10 border-red-500/50 text-red-500 animate-pulse' 
-                    : 'bg-zinc-900 border-white/5 text-zinc-500 hover:text-indigo-400 hover:border-indigo-500/30'
+                    : 'bg-secondary border-white/5 text-zinc-500 hover:text-indigo-400 hover:border-indigo-500/30'
                   }`}
                   title={isScanning ? "Abort Scan" : "Full Health Check"}
                 >
@@ -528,7 +558,7 @@ export default function Home() {
                 </button>
                 <button 
                   onClick={exportFavorites}
-                  className="p-2 bg-zinc-900 border border-white/5 rounded-xl text-zinc-500 hover:text-amber-500 transition-all"
+                  className="p-2 bg-secondary border border-white/5 rounded-xl text-zinc-500 hover:text-amber-500 transition-all"
                   title="Export Favorites"
                 >
                   <Share2 size={16} />
@@ -536,7 +566,7 @@ export default function Home() {
                 
                 <button 
                   onClick={() => setIsSidebarOpen(false)}
-                  className="p-2 bg-white/[0.03] border border-white/5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all md:hidden"
+                  className="p-2 bg-card border border-white/5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all md:hidden"
                   title="Close Sidebar"
                 >
                   <X size={16} />
@@ -551,7 +581,7 @@ export default function Home() {
                 <input 
                   type="text" 
                   placeholder="Search channels..."
-                  className="w-full bg-white/[0.02] border border-white/5 rounded-2xl py-3 pl-12 pr-4 outline-none focus:border-indigo-500/50 focus:bg-white/[0.04] transition-all text-sm placeholder:text-zinc-600 shadow-inner font-medium"
+                  className="w-full bg-input border border-white/5 rounded-2xl py-3 pl-12 pr-4 outline-none focus:border-indigo-500/50 focus:bg-white/[0.04] transition-all text-sm placeholder:text-zinc-600 shadow-inner font-medium"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -567,7 +597,7 @@ export default function Home() {
                   className={`p-3 rounded-2xl border transition-all ${
                     currentFilter !== 'Semua' 
                     ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400' 
-                    : 'bg-white/[0.02] border-white/5 text-zinc-500 hover:text-indigo-400 hover:border-indigo-500/30'
+                    : 'bg-input border-white/5 text-zinc-500 hover:text-indigo-400 hover:border-indigo-500/30'
                   }`}
                   title="Filter Category"
                 >
@@ -575,7 +605,7 @@ export default function Home() {
                 </button>
 
                 {showCategoryMenu && (
-                  <div className="absolute top-full right-0 mt-2 w-48 bg-zinc-900/95 border border-white/10 rounded-2xl shadow-2xl backdrop-blur-2xl py-2 z-[60] animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+                  <div className="absolute top-full right-0 mt-2 w-48 bg-secondary/95 border border-white/10 rounded-2xl shadow-2xl backdrop-blur-2xl py-2 z-[60] animate-in fade-in zoom-in-95 duration-200 origin-top-right">
                     <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
                       {categoryFilters.map((filter) => (
                         <button
@@ -609,7 +639,7 @@ export default function Home() {
                   className={`p-3 rounded-2xl border transition-all ${
                     currentGroup !== 'Semua' 
                     ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400' 
-                    : 'bg-white/[0.02] border-white/5 text-zinc-500 hover:text-indigo-400 hover:border-indigo-500/30'
+                    : 'bg-input border-white/5 text-zinc-500 hover:text-indigo-400 hover:border-indigo-500/30'
                   }`}
                   title="Filter Group"
                 >
@@ -617,7 +647,7 @@ export default function Home() {
                 </button>
 
                 {showGroupMenu && (
-                  <div className="absolute top-full right-0 mt-2 w-64 bg-zinc-900/95 border border-white/10 rounded-2xl shadow-2xl backdrop-blur-2xl py-2 z-[60] animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+                  <div className="absolute top-full right-0 mt-2 w-64 bg-secondary/95 border border-white/10 rounded-2xl shadow-2xl backdrop-blur-2xl py-2 z-[60] animate-in fade-in zoom-in-95 duration-200 origin-top-right">
                     <div className="px-4 py-2 border-b border-white/5 mb-1">
                       <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Pilih Grup</span>
                     </div>
@@ -645,7 +675,7 @@ export default function Home() {
             </div>
 
             {isScanning && (
-              <div className="w-full h-1 bg-zinc-900 rounded-full overflow-hidden shadow-inner">
+              <div className="w-full h-1 bg-secondary rounded-full overflow-hidden shadow-inner">
                 <div 
                   className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-300" 
                   style={{ width: `${(scanProgress.current / scanProgress.total) * 100}%` }}
@@ -674,7 +704,7 @@ export default function Home() {
                     : 'bg-white/[0.01] border-transparent hover:bg-white/[0.04] hover:translate-x-1'
                   }`}
                 >
-                  <div className="w-12 h-12 rounded-xl bg-zinc-900 border border-white/5 overflow-hidden flex-shrink-0 flex items-center justify-center relative shadow-sm group-hover:scale-105 transition-transform">
+                  <div className="w-12 h-12 rounded-xl bg-secondary border border-white/5 overflow-hidden flex-shrink-0 flex items-center justify-center relative shadow-sm group-hover:scale-105 transition-transform">
                     {ch.logo ? (
                       <img src={ch.logo} alt="" className="w-full h-full object-contain p-1" onError={(e) => (e.currentTarget.style.display = 'none')} />
                     ) : (
@@ -714,7 +744,7 @@ export default function Home() {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 flex flex-col min-w-0 bg-black/20 relative">
+        <main className="flex-1 flex flex-col min-w-0 bg-secondary relative">
           <div className={`flex-1 p-0 md:p-4 pb-28 md:pb-4 flex flex-col ${!currentChannel ? 'justify-center' : ''}`}>
             <div className={`max-w-[1600px] mx-auto w-full p-4 md:p-6 ${!currentChannel ? 'py-12' : 'space-y-8'}`}>
               {/* Player Section - Maximized */}
@@ -731,7 +761,7 @@ export default function Home() {
                       
                       {/* Custom Player Overlays */}
                       {streamStatus === 'loading' && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/80 backdrop-blur-sm z-10">
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-input/50 backdrop-blur-sm z-10">
                           <div className="relative">
                             <Loader2 className="animate-spin text-indigo-500" size={48} />
                             <div className="absolute inset-0 blur-xl bg-indigo-500/20 animate-pulse" />
@@ -767,7 +797,7 @@ export default function Home() {
                       
                       <div className="relative z-10 space-y-3 md:space-y-8 animate-in fade-in zoom-in duration-1000">
                         {/* Elegant Play Icon */}
-                        <div className="mx-auto w-12 h-12 md:w-32 md:h-32 rounded-xl md:rounded-[2.5rem] bg-white/[0.03] border border-white/10 flex items-center justify-center relative group">
+                        <div className="mx-auto w-12 h-12 md:w-32 md:h-32 rounded-xl md:rounded-[2.5rem] bg-card border border-white/10 flex items-center justify-center relative group">
                           <div className="absolute inset-0 bg-indigo-500/10 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
                           <Play className="text-white fill-white/20 translate-x-0.5 md:translate-x-1" size={window?.innerWidth < 768 ? 18 : 48} />
                         </div>
@@ -809,7 +839,7 @@ export default function Home() {
                       </button>
                       
                       {showQualityMenu && levels.length > 0 && (
-                        <div className="absolute top-full right-0 mt-3 w-48 bg-zinc-900/95 border border-white/10 rounded-3xl shadow-2xl overflow-hidden backdrop-blur-2xl py-2 z-[60] animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+                        <div className="absolute top-full right-0 mt-3 w-48 bg-secondary/95 border border-white/10 rounded-3xl shadow-2xl overflow-hidden backdrop-blur-2xl py-2 z-[60] animate-in fade-in zoom-in-95 duration-200 origin-top-right">
                           <div className="px-4 py-2 border-b border-white/5 mb-1">
                             <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Quality Levels</span>
                           </div>
@@ -871,7 +901,7 @@ export default function Home() {
                     <p className="text-zinc-500 text-lg font-medium italic">"Enjoy your stream on VibeStream Premium."</p>
                     
                     <div className="flex flex-wrap items-center gap-3 pt-2">
-                      <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-white/[0.03] border border-white/5 text-xs font-bold text-zinc-400">
+                      <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-card border border-white/5 text-xs font-bold text-zinc-400">
                         <div className={`w-2 h-2 rounded-full ${streamStatus === 'playing' ? 'bg-green-500 animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-zinc-600'}`} />
                         {streamStatus.toUpperCase()} STREAM
                       </div>
@@ -881,14 +911,14 @@ export default function Home() {
                   <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto px-4 sm:px-0">
                     <button 
                       onClick={() => copyToClipboard(activeUrl || currentChannel.url)}
-                      className="flex items-center justify-center gap-3 px-5 py-4 rounded-2xl bg-white/[0.03] border border-white/5 text-zinc-300 hover:text-white hover:bg-white/[0.06] transition-all font-black text-[10px] uppercase tracking-widest active:scale-95 w-full sm:w-auto min-w-[140px]"
+                      className="flex items-center justify-center gap-3 px-5 py-4 rounded-2xl bg-card border border-white/5 text-zinc-300 hover:text-white hover:bg-white/[0.06] transition-all font-black text-[10px] uppercase tracking-widest active:scale-95 w-full sm:w-auto min-w-[140px]"
                     >
                       {copying ? <CheckCircle2 size={16} className="text-green-500" /> : <Copy size={16} />}
                       {copying ? 'Copied!' : 'Copy Link'}
                     </button>
                     <button 
                       onClick={openInVLC}
-                      className="flex items-center justify-center gap-3 px-5 py-4 rounded-2xl bg-white/[0.03] border border-white/5 text-zinc-300 hover:text-white hover:bg-white/[0.06] transition-all font-black text-[10px] uppercase tracking-widest active:scale-95 w-full sm:w-auto min-w-[140px]"
+                      className="flex items-center justify-center gap-3 px-5 py-4 rounded-2xl bg-card border border-white/5 text-zinc-300 hover:text-white hover:bg-white/[0.06] transition-all font-black text-[10px] uppercase tracking-widest active:scale-95 w-full sm:w-auto min-w-[140px]"
                     >
                       <ExternalLink size={16} />
                       Watch in VLC
@@ -904,7 +934,7 @@ export default function Home() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="p-6 rounded-3xl bg-white/[0.02] border border-white/5 space-y-4 hover:bg-white/[0.04] transition-all group">
+                  <div className="p-6 rounded-3xl bg-input border border-white/5 space-y-4 hover:bg-white/[0.04] transition-all group">
                     <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-transform">
                       <ShieldCheck size={24} />
                     </div>
@@ -913,7 +943,7 @@ export default function Home() {
                       <p className="text-zinc-500 text-xs leading-relaxed">Secure end-to-end HLS streaming protection.</p>
                     </div>
                   </div>
-                  <div className="p-6 rounded-3xl bg-white/[0.02] border border-white/5 space-y-4 hover:bg-white/[0.04] transition-all group">
+                  <div className="p-6 rounded-3xl bg-input border border-white/5 space-y-4 hover:bg-white/[0.04] transition-all group">
                     <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform">
                       <Zap size={24} />
                     </div>
@@ -922,7 +952,7 @@ export default function Home() {
                       <p className="text-zinc-500 text-xs leading-relaxed">Optimized buffer for near real-time playback.</p>
                     </div>
                   </div>
-                  <div className="p-6 rounded-3xl bg-white/[0.02] border border-white/5 space-y-4 hover:bg-white/[0.04] transition-all group">
+                  <div className="p-6 rounded-3xl bg-input border border-white/5 space-y-4 hover:bg-white/[0.04] transition-all group">
                     <div className="w-12 h-12 rounded-2xl bg-pink-500/10 flex items-center justify-center text-pink-400 group-hover:scale-110 transition-transform">
                       <Sparkles size={24} />
                     </div>
@@ -964,7 +994,7 @@ export default function Home() {
 
       {/* Mobile Sticky Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 z-[100] md:hidden px-4 pb-6 pt-2 bg-gradient-to-t from-zinc-950 via-zinc-950 to-transparent pointer-events-none">
-        <div className="max-w-md mx-auto bg-zinc-900/90 backdrop-blur-2xl border border-white/10 rounded-2xl p-2 flex items-center justify-around shadow-2xl pointer-events-auto">
+        <div className="max-w-md mx-auto bg-secondary/90 backdrop-blur-2xl border border-white/10 rounded-2xl p-2 flex items-center justify-around shadow-2xl pointer-events-auto">
           <button 
             onClick={() => {
               setCurrentChannel(null);
