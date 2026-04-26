@@ -59,8 +59,8 @@ export default function Home() {
 
   // --- State ---
   const [channels, setChannels] = useState<Channel[]>([]);
-  const [favorites, setFavorites] = useState<string[]>([]);
-  const [history, setHistory] = useState<string[]>([]);
+  const [favorites, setFavorites] = useState<Channel[]>([]);
+  const [history, setHistory] = useState<Channel[]>([]);
   const [currentFilter, setCurrentFilter] = useState('Semua');
   const [currentGroup, setCurrentGroup] = useState('Semua');
   const [searchQuery, setSearchQuery] = useState('');
@@ -93,8 +93,8 @@ export default function Home() {
       setIsSidebarOpen(true);
     }
     
-    const savedFavs = localStorage.getItem('vibestream_favs');
-    const savedHistory = localStorage.getItem('vibestream_history');
+    const savedFavs = localStorage.getItem('vibestream_favs_v2');
+    const savedHistory = localStorage.getItem('vibestream_history_v2');
     const savedUrl = localStorage.getItem('vibestream_url');
 
     if (savedFavs) setFavorites(JSON.parse(savedFavs));
@@ -143,18 +143,20 @@ export default function Home() {
 
 
 
-  const addToHistory = (id: string) => {
-    const newHistory = [id, ...history.filter(h => h !== id)].slice(0, 15);
-    setHistory(newHistory);
-    localStorage.setItem('vibestream_history', JSON.stringify(newHistory));
+  const addToHistory = (channel: Channel) => {
+    setHistory(prev => {
+      const newHistory = [channel, ...prev.filter(h => h.id !== channel.id)].slice(0, 30);
+      localStorage.setItem('vibestream_history_v2', JSON.stringify(newHistory));
+      return newHistory;
+    });
   };
 
-    const playChannel = async (channel: Channel) => {
+  const playChannel = async (channel: Channel) => {
     const playbackId = ++playbackIdRef.current;
     const abortController = new AbortController();
     
     setCurrentChannel(channel);
-    addToHistory(channel.id);
+    addToHistory(channel);
     setLevels([]);
     setCurrentLevel(-1);
     setStreamStatus('loading');
@@ -295,17 +297,24 @@ export default function Home() {
     }
   };
 
-  const toggleFavorite = (id: string, e: React.MouseEvent) => {
+  const toggleFavorite = (channel: Channel, e: React.MouseEvent) => {
     e.stopPropagation();
-    const newFavs = favorites.includes(id) 
-      ? favorites.filter(fid => fid !== id) 
-      : [...favorites, id];
-    setFavorites(newFavs);
-    localStorage.setItem('vibestream_favs', JSON.stringify(newFavs));
+    setFavorites(prev => {
+      const exists = prev.find(f => f.id === channel.id);
+      const newFavs = exists 
+        ? prev.filter(f => f.id !== channel.id) 
+        : [...prev, channel];
+      localStorage.setItem('vibestream_favs_v2', JSON.stringify(newFavs));
+      return newFavs;
+    });
   };
 
   const updateChannelStatus = (id: string, status: Channel['status']) => {
-    setChannels(prev => prev.map(c => c.id === id ? { ...c, status } : c));
+    const updater = (prev: Channel[]) => prev.map(c => c.id === id ? { ...c, status } : c);
+    setChannels(updater);
+    setFavorites(updater);
+    setHistory(updater);
+    
     const cachedStatusRaw = localStorage.getItem('vibestream_status_cache');
     const cached = cachedStatusRaw ? JSON.parse(cachedStatusRaw) : {};
     cached[id] = status;
@@ -458,15 +467,21 @@ export default function Home() {
 
   const filteredChannels = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
-    return channels.filter(c => {
+    
+    // Choose base list based on category
+    let baseList = channels;
+    if (currentFilter === 'Favorit') baseList = favorites;
+    if (currentFilter === 'History') baseList = history;
+
+    return baseList.filter(c => {
       const matchesSearch = query === '' || c.name.toLowerCase().includes(query);
       const matchesGroup = currentGroup === 'Semua' || (c.groups || ['Lainnya']).includes(currentGroup);
       
       let matchesCategory = false;
       switch (currentFilter) {
         case 'Semua': matchesCategory = true; break;
-        case 'Favorit': matchesCategory = favorites.includes(c.id); break;
-        case 'History': matchesCategory = history.includes(c.id); break;
+        case 'Favorit': matchesCategory = true; break; // Base list is already favorites
+        case 'History': matchesCategory = true; break; // Base list is already history
         case 'Stream Aktif': matchesCategory = c.status === 'online'; break;
         case 'Stream Mati': matchesCategory = c.status === 'offline'; break;
         default: matchesCategory = true;
@@ -474,7 +489,11 @@ export default function Home() {
       
       return matchesSearch && matchesGroup && matchesCategory;
     }).sort((a, b) => {
-      if (currentFilter === 'History') return history.indexOf(a.id) - history.indexOf(b.id);
+      if (currentFilter === 'History') {
+        const idxA = history.findIndex(h => h.id === a.id);
+        const idxB = history.findIndex(h => h.id === b.id);
+        return idxA - idxB;
+      }
       return 0;
     });
   }, [channels, favorites, history, currentFilter, currentGroup, searchQuery]);
@@ -776,10 +795,10 @@ export default function Home() {
                     <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest truncate mt-0.5">{ch.groups?.join(', ') || 'Lainnya'}</p>
                   </div>
                   <button 
-                    onClick={(e) => toggleFavorite(ch.id, e)}
-                    className={`p-2 rounded-lg transition-all ${favorites.includes(ch.id) ? 'text-amber-500 bg-amber-500/10' : 'text-zinc-700 hover:text-amber-500 hover:bg-white/5'}`}
+                    onClick={(e) => toggleFavorite(ch, e)}
+                    className={`p-2 rounded-lg transition-all ${favorites.some(f => f.id === ch.id) ? 'text-amber-500 bg-amber-500/10' : 'text-zinc-700 hover:text-amber-500 hover:bg-white/5'}`}
                   >
-                    <Star size={16} fill={favorites.includes(ch.id) ? "currentColor" : "none"} />
+                    <Star size={16} fill={favorites.some(f => f.id === ch.id) ? "currentColor" : "none"} />
                   </button>
                 </div>
               ))
