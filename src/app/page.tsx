@@ -408,7 +408,7 @@ export default function Home() {
   };
 
   const exportFavorites = () => {
-    const favChannels = channels.filter(c => favorites.includes(c.id));
+    const favChannels = favorites;
     if (favChannels.length === 0) return alert('Daftar favorit masih kosong.');
     
     let m3u = '#EXTM3U\n';
