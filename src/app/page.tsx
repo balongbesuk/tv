@@ -23,6 +23,7 @@ import {
   Share2,
   Activity,
   Cpu,
+  Sparkles,
   Radio,
   WifiOff,
   ChevronDown,
@@ -424,7 +425,10 @@ export default function Home() {
 
           <div className="relative group/source">
             <button 
-              onClick={() => setShowSettings(!showSettings)}
+              onClick={() => {
+                setShowSettings(!showSettings);
+                setIsSidebarOpen(false);
+              }}
               className="p-2.5 bg-white/[0.03] border border-white/5 rounded-xl text-zinc-400 hover:text-indigo-400 hover:bg-white/[0.05] transition-all shadow-sm"
               title="Settings"
             >
@@ -536,6 +540,14 @@ export default function Home() {
                   title="Export Favorites"
                 >
                   <Share2 size={16} />
+                </button>
+                
+                <button 
+                  onClick={() => setIsSidebarOpen(false)}
+                  className="p-2 bg-white/[0.03] border border-white/5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all md:hidden"
+                  title="Close Sidebar"
+                >
+                  <X size={16} />
                 </button>
               </div>
             </div>
@@ -659,8 +671,8 @@ export default function Home() {
 
         {/* Main Content */}
         <main className="flex-1 flex flex-col min-w-0 bg-black/20 relative">
-          <div className="flex-1 p-0 md:p-4 pb-28 md:pb-4 flex flex-col">
-            <div className="max-w-[1600px] mx-auto w-full p-4 md:p-6 space-y-8">
+          <div className={`flex-1 p-0 md:p-4 pb-28 md:pb-4 flex flex-col ${!currentChannel ? 'justify-center' : ''}`}>
+            <div className={`max-w-[1600px] mx-auto w-full p-4 md:p-6 ${!currentChannel ? 'py-12' : 'space-y-8'}`}>
               {/* Player Section - Maximized */}
               <div className="relative w-full group/player">
                 <div className="relative aspect-video w-full bg-black rounded-[2rem] md:rounded-[3rem] overflow-hidden shadow-[0_30px_100px_-20px_rgba(0,0,0,0.5)] border border-white/5">
@@ -705,15 +717,36 @@ export default function Home() {
                       )}
                     </>
                   ) : (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center">
-                      <div className="w-24 h-24 rounded-[2rem] bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center mb-8 border border-white/5 relative">
-                        <Play className="text-indigo-400 fill-indigo-400/20" size={40} />
-                        <div className="absolute inset-0 blur-3xl bg-indigo-500/10 rounded-full" />
+                    <div className="absolute inset-0 flex flex-col items-center justify-center p-4 md:p-8 text-center bg-[#09090b]">
+                      {/* Subtlest Glow */}
+                      <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/5 to-transparent pointer-events-none" />
+                      
+                      <div className="relative z-10 space-y-3 md:space-y-8 animate-in fade-in zoom-in duration-1000">
+                        {/* Elegant Play Icon */}
+                        <div className="mx-auto w-12 h-12 md:w-32 md:h-32 rounded-xl md:rounded-[2.5rem] bg-white/[0.03] border border-white/10 flex items-center justify-center relative group">
+                          <div className="absolute inset-0 bg-indigo-500/10 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+                          <Play className="text-white fill-white/20 translate-x-0.5 md:translate-x-1" size={window?.innerWidth < 768 ? 18 : 48} />
+                        </div>
+
+                        <div className="space-y-1.5 md:space-y-4">
+                          <h2 className="text-xl md:text-5xl font-black text-white tracking-tighter">
+                            Ready to <span className="text-indigo-400">Stream</span>
+                          </h2>
+                          <p className="text-zinc-500 text-[9px] md:text-base max-w-[180px] md:max-w-sm mx-auto leading-relaxed font-medium">
+                            Select a channel from the explorer to begin your premium viewing experience.
+                          </p>
+                        </div>
+
+                        <div className="pt-1.5 md:pt-4">
+                          <button 
+                            onClick={() => setIsSidebarOpen(true)}
+                            className="inline-flex items-center gap-2 md:gap-3 px-5 py-2.5 md:px-8 md:py-4 bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-white rounded-xl md:rounded-2xl transition-all active:scale-95 group"
+                          >
+                            <Search size={12} className="text-indigo-400 md:w-[18px] md:h-[18px]" />
+                            <span className="text-[9px] md:text-xs font-black uppercase tracking-widest">Open Explorer</span>
+                          </button>
+                        </div>
                       </div>
-                      <h2 className="text-3xl font-black text-white tracking-tight mb-3">Ready to Stream</h2>
-                      <p className="text-zinc-500 text-sm max-w-sm leading-relaxed">
-                        Select a channel from the explorer to start watching your favorite content in premium quality.
-                      </p>
                     </div>
                   )}
                 </div>
@@ -883,10 +916,12 @@ export default function Home() {
         <div className="max-w-md mx-auto bg-zinc-900/90 backdrop-blur-2xl border border-white/10 rounded-2xl p-2 flex items-center justify-around shadow-2xl pointer-events-auto">
           <button 
             onClick={() => {
+              setCurrentChannel(null);
               setCurrentFilter('Semua');
               setCurrentGroup('Semua');
               setSearchQuery('');
               setIsSidebarOpen(false);
+              setShowSettings(false);
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
             className="flex flex-col items-center gap-1 p-2 text-zinc-500 hover:text-white transition-all"
@@ -897,8 +932,13 @@ export default function Home() {
 
           <button 
             onClick={() => {
-              setCurrentFilter('Favorit');
-              setIsSidebarOpen(true);
+              if (currentFilter === 'Favorit') {
+                setCurrentFilter('Semua');
+              } else {
+                setCurrentFilter('Favorit');
+                setIsSidebarOpen(true);
+              }
+              setShowSettings(false);
             }}
             className="flex flex-col items-center gap-1 p-2 text-zinc-500 hover:text-white transition-all"
           >
@@ -907,7 +947,10 @@ export default function Home() {
           </button>
           
           <button 
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            onClick={() => {
+              setIsSidebarOpen(!isSidebarOpen);
+              setShowSettings(false);
+            }}
             className="flex flex-col items-center gap-1 p-2 text-zinc-500 hover:text-white transition-all"
           >
             <Search size={20} className={isSidebarOpen ? 'text-indigo-400' : ''} />
@@ -919,6 +962,7 @@ export default function Home() {
               const next = !autoProxyMode;
               setAutoProxyMode(next);
               localStorage.setItem('vibestream_autoproxy', JSON.stringify(next));
+              setShowSettings(false);
             }}
             className="flex flex-col items-center gap-1 p-2 text-zinc-500 hover:text-white transition-all"
           >
@@ -927,7 +971,10 @@ export default function Home() {
           </button>
 
           <button 
-            onClick={() => setShowSettings(!showSettings)}
+            onClick={() => {
+              setShowSettings(!showSettings);
+              setIsSidebarOpen(false);
+            }}
             className="flex flex-col items-center gap-1 p-2 text-zinc-500 hover:text-white transition-all"
           >
             <Settings size={20} className={showSettings ? 'text-indigo-400' : ''} />
